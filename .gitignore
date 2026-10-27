@@ -1,0 +1,37 @@
+# Virtual environments
+.venv/
+.venv-wsl/
+.venv-windows/
+venv/
+
+# Python cache and build files
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Test and tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Generated experiment outputs
+results/
+outputs/
+logs/
+*.log
+
+# Operating system files
+.DS_Store
+Thumbs.db
