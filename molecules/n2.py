@@ -1,4 +1,4 @@
-from molecule import Atom, Molecule
+from .molecule import Atom, Molecule
 
 n2 = Molecule(
     name="N2",
