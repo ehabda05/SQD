@@ -1,4 +1,4 @@
-from .molecule import Atom, Molecule
+from chemistry.molecule import Atom, Molecule
 
 lih = Molecule(
     name="LiH",
