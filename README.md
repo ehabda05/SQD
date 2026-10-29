@@ -1,7 +1,7 @@
 # DRIFT-TRIM
 
-Shared chemistry preparation for the SqDRIFT / TRIM-SQD research workflow.
-Sampling, recovery, trimming, and benchmark execution are not implemented yet.
+Shared chemistry preparation, SqDRIFT sampling, and SQD/TRIM-SQD solver modules
+for the research workflow. End-to-end benchmark execution remains in progress.
 
 ## Setup and validation
 
@@ -18,7 +18,7 @@ OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 python -m unittest discover -s tests -v
 Run from the repository root; no PYTHONPATH workaround is required.
 
 ```python
-from molecules.prepare import prepare_registered
+from chemistry.prepare import prepare_registered
 
 hamiltonian = prepare_registered('lih')
 print(hamiltonian.active_orbitals)  # (1, 2, 3), canonical RHF MO indices

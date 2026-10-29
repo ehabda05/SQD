@@ -4,7 +4,7 @@ from typing import Sequence
 import numpy as np
 from pyscf import ao2mo, fci, gto, mcscf, scf
 
-from molecule import Molecule
+from .molecule import Molecule
 
 
 @dataclass(frozen=True)
@@ -108,6 +108,9 @@ def prepare_molecule(
     frozen = tuple(i for i in range(nmo) if i not in indices)[:ncore]
 
     occupied_hf = set(range(mol.nelectron // 2))
+
+    if not set(frozen).issubset(occupied_hf):
+        raise ValueError("Frozen orbitals must be occupied HF orbitals.")
 
     if not occupied_hf.issubset(set(frozen) | set(indices)):
         raise ValueError("Active space would discard an occupied HF orbital.")

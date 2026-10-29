@@ -1,2 +1,6 @@
 numpy>=1.26,<3
 pyscf>=2.8,<3
+qiskit~=2.5.0
+qiskit-aer>=0.17,<1
+qiskit-fermions>=0.2,<1
+qiskit-addon-sqd>=0.14,<1

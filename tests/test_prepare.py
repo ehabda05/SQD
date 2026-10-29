@@ -119,6 +119,7 @@ class PreparationTests(unittest.TestCase):
             {"active_electrons": 3},
             {"active_orbitals": 0},
             {"orbital_indices": [1, 1, 2]},
+            {"orbital_indices": [0, 1, 2]},
             {"orbital_indices": [3, 4, 5]},
             {"orbital_indices": [1, 2, 9]},
         ]
