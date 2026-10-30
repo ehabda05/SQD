@@ -53,6 +53,7 @@ def main() -> None:
         "molecule": "n2-zenko",
         "active_orbitals": prepared.num_orbitals,
         "active_electrons": prepared.num_electrons,
+        "constant_energy_offset_hartree": prepared.constant_energy,
         "simulator_method": args.simulator_method,
         "simulator_options": {"max_parallel_threads": 2},
         "evolution_time": args.time,

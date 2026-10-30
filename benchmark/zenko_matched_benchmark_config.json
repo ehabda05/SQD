@@ -23,6 +23,9 @@
     "reference": {
       "method": "PySCF direct_spin1 iterative FCI",
       "total_energy_hartree": -109.04667177831362,
+      "electronic_energy_hartree": -32.81556923855211,
+      "constant_energy_offset_hartree": -76.23110253976151,
+      "energy_convention": "total_energy = electronic_energy + constant_energy_offset",
       "convergence_tolerance": 1e-10,
       "converged": true,
       "validation_record": "results/n2-zenko-iterative-reference.json"

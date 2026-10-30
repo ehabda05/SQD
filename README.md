@@ -225,6 +225,21 @@ complex128 statevector. The pilot is only an execution and memory check: its
 one-step circuit produced one unique configuration and is not evidence of
 sampling accuracy. Seeds 157--186 remain reserved.
 
+The full paper schedule is exercised by `benchmark/paper_n2_full_pilot.py`:
+20 and 100 evolution times, 200 QDrift steps, 10 circuits per time, and
+10,000 shots per circuit, followed by the frozen cap-32 marginal selector.
+The reference energy convention is
+`E_total = E_electronic + constant_energy_offset`, with electronic energy
+`-32.81556923855211 Ha` and offset `-76.23110253976151 Ha`.
+
+The first full-schedule MPS sensitivity check failed at bond dimension 128
+and truncation threshold `1e-8`: truncation produced a bitstring outside the
+required `(5,5)` electron sector, and the sampler rejected it rather than
+silently filtering it. A retry at bond dimension 512 and threshold `1e-12`
+did not complete within approximately 18 minutes, so no accuracy result was
+recorded. This means the current MPS settings have not yet demonstrated a
+manageable full-schedule pilot; no confirmation seeds were used.
+
 The repository does not yet contain a ZenKO runner or its UCJ/CCSD optimizer
 implementation, so this configuration freezes the matched protocol but does
 not claim a ZenKO result. Simulator runtime must remain explicitly separate
