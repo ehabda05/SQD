@@ -2,6 +2,7 @@
 
 import argparse
 import csv
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -57,6 +58,10 @@ def run_marginal(prepared, counts, args, seed):
     elapsed = perf_counter() - start
     progress.append((elapsed, candidate_energy, "candidate"))
     best = min(collection.total_energy, candidate_energy)
+    if collection.total_energy <= candidate_energy:
+        best_state = collection.sci_result.sci_state
+    else:
+        best_state = candidate.sci_state
     return {
         "energy": best,
         "elapsed": elapsed,
@@ -66,6 +71,8 @@ def run_marginal(prepared, counts, args, seed):
         + selected_a.size * selected_b.size,
         "selected_alpha": selected_a.tolist(),
         "selected_beta": selected_b.tolist(),
+        "best_alpha": np.asarray(best_state.ci_strs_a).tolist(),
+        "best_beta": np.asarray(best_state.ci_strs_b).tolist(),
     }
 
 
@@ -96,6 +103,8 @@ def run_standard(prepared, counts, args, seed, budget):
             sum(result.classical_solve_dimensions) for result in runs
         ),
         "restart_count": len(runs),
+        "best_alpha": np.asarray(best.sci_result.sci_state.ci_strs_a).tolist(),
+        "best_beta": np.asarray(best.sci_result.sci_state.ci_strs_b).tolist(),
     }
 
 
@@ -125,9 +134,17 @@ def main() -> None:
     parser.add_argument("--strings-per-spin", type=int, default=8)
     parser.add_argument("--cache-dir", type=Path, default=Path("results/fci-cache"))
     parser.add_argument("--out", type=Path, default=Path("results/fair-selection"))
+    parser.add_argument("--reference-file", type=Path)
+    parser.add_argument("--solver-seed-offset", type=int, default=0)
     args = parser.parse_args()
 
     prepared = prepare_registered(args.molecule, fci_cache_dir=args.cache_dir)
+    references = {}
+    if args.reference_file is not None:
+        references = {
+            (row["schedule"], row["seed"]): row
+            for row in json.loads(args.reference_file.read_text())
+        }
     args.out.mkdir(parents=True, exist_ok=True)
     rows = []
 
@@ -136,20 +153,43 @@ def main() -> None:
             counts = json.loads(
                 (args.pool_dir / f"pool_{schedule}_{seed}.json").read_text()
             )
+            pool_hash = hashlib.sha256(
+                json.dumps(counts, sort_keys=True).encode()
+            ).hexdigest()
+            n = prepared.num_orbitals
+            pool_alpha = {int(bitstring[n:], 2) for bitstring in counts}
+            pool_beta = {int(bitstring[:n], 2) for bitstring in counts}
+            reference_row = references.get((schedule, seed))
+            if references and reference_row is None:
+                raise ValueError(f"Missing reference for schedule={schedule}, seed={seed}")
+            if reference_row is None:
+                reference = solve_sci(
+                    (np.array(sorted(pool_alpha)), np.array(sorted(pool_beta))),
+                    prepared.h1,
+                    prepared.h2,
+                    norb=n,
+                    nelec=prepared.num_electrons,
+                )
+                reference_energy = float(reference.energy) + prepared.constant_energy
+            else:
+                if reference_row["pool_hash"] != pool_hash:
+                    raise ValueError(f"Pool hash mismatch for schedule={schedule}, seed={seed}")
+                reference_energy = float(reference_row["energy"])
             warm_up(prepared, counts, args, seed)
-            pilot = run_marginal(prepared, counts, args, seed)
+            method_seed = seed + args.solver_seed_offset
+            pilot = run_marginal(prepared, counts, args, method_seed)
             budget_target = pilot["elapsed"]
             marginal_first = (schedule + seed) % 2 == 0
             if marginal_first:
-                marginal = run_marginal(prepared, counts, args, seed + 2000)
+                marginal = run_marginal(prepared, counts, args, method_seed)
                 standard = run_standard(
-                    prepared, counts, args, seed + 1000, budget_target
+                    prepared, counts, args, method_seed, budget_target
                 )
             else:
                 standard = run_standard(
-                    prepared, counts, args, seed + 1000, budget_target
+                    prepared, counts, args, method_seed, budget_target
                 )
-                marginal = run_marginal(prepared, counts, args, seed + 2000)
+                marginal = run_marginal(prepared, counts, args, method_seed)
 
             def error(energy):
                 return (
@@ -162,6 +202,16 @@ def main() -> None:
                 {
                     "schedule": schedule,
                     "seed": seed,
+                    "solver_seed_offset": args.solver_seed_offset,
+                    "pool_hash": pool_hash,
+                    "alpha_string_count": len(pool_alpha),
+                    "beta_string_count": len(pool_beta),
+                    "reference_error_mha": (
+                        None
+                        if prepared.fci_energy is None
+                        else 1000 * abs(reference_energy - prepared.fci_energy)
+                    ),
+                    "reference_energy": reference_energy,
                     "marginal_first": marginal_first,
                     "budget_seconds": budget_target,
                     "marginal_elapsed": marginal["elapsed"],
@@ -174,6 +224,18 @@ def main() -> None:
                     "standard_error_mha": error(standard["energy"]),
                     "standard_delta_vs_marginal_mha": 1000
                     * (standard["energy"] - marginal["energy"]),
+                    "marginal_absent_alpha": sorted(
+                        set(marginal["best_alpha"]) - pool_alpha
+                    ),
+                    "marginal_absent_beta": sorted(
+                        set(marginal["best_beta"]) - pool_beta
+                    ),
+                    "standard_absent_alpha": sorted(
+                        set(standard["best_alpha"]) - pool_alpha
+                    ),
+                    "standard_absent_beta": sorted(
+                        set(standard["best_beta"]) - pool_beta
+                    ),
                     "marginal_solve_count": marginal["solve_count"],
                     "standard_solve_count": standard["solve_count"],
                     "marginal_total_determinants": marginal["determinants"],

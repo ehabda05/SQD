@@ -143,6 +143,12 @@ freezing this configuration, then evaluate the primary 200-step schedule
 (index 3) and secondary 100-step schedule (index 2) on seeds 55--84 without
 tuning the scoring rule or solver settings.
 
+For saved-pool cap studies, use `benchmark/reference_pools.py` to create one
+exact fixed-sector matrix reference per pool. It builds the complete sector
+matrix and extracts the sampled-product principal submatrix; do not average
+unrestricted and capped rows or recompute references through repeated SCI
+iterations.
+
 For a reference-informed upper-bound diagnostic, use
 `benchmark/ci_diagnostic.py`. It ranks alpha and beta strings using the
 unrestricted sampled-pool SCI wavefunction, retains the top eight strings per
