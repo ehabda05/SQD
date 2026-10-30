@@ -156,6 +156,10 @@ seed policy, stopping rule, warm-up and timing procedure, and reference
 threading. Reference reproducibility is stabilized by this protocol; practical
 solver call-history independence remains an explicit limitation.
 
+The small-system N₂ studies use the six-electron, six-orbital active space.
+For larger-space experiments, `n2-large` selects an 8-orbital, 10-electron
+STO-3G N₂ active space without changing either selection method.
+
 For a reference-informed upper-bound diagnostic, use
 `benchmark/ci_diagnostic.py`. It ranks alpha and beta strings using the
 unrestricted sampled-pool SCI wavefunction, retains the top eight strings per

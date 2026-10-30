@@ -8,4 +8,5 @@ MOLECULES = {
     "lih": {"molecule": lih, "active_electrons": 2, "active_orbitals": 3},
     "h2o": {"molecule": h2o, "active_electrons": 8, "active_orbitals": 6},
     "n2": {"molecule": n2, "active_electrons": 6, "active_orbitals": 6},
+    "n2-large": {"molecule": n2, "active_electrons": 10, "active_orbitals": 8},
 }
