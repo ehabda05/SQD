@@ -182,6 +182,17 @@ solve progress; a run that never reaches a threshold is counted as a failure.
 The curve is exploratory and does not change the frozen cap-12 confirmation
 claim.
 
+In this saved-pool analysis, `marginal_elapsed` and `standard_elapsed` are
+complete classical processing times: scoring, selection, batching, and all
+diagonalization solves. They do not include the original quantum-simulation
+pool-generation time. Add the `sampling_seconds` values from the corresponding
+sampling results to obtain end-to-end time. For the 30 larger-N2 pools, mean
+pool generation took 24.641 seconds. Thus the cap-32 mean end-to-end times
+were 24.884 seconds for marginal selection and 25.090 seconds for Standard
+SQD. Threshold time-to-target is reported both as classical processing time
+and with pool generation added; successful-method averages use only runs that
+reached the threshold, while failures remain in the attainment denominator.
+
 For a reference-informed upper-bound diagnostic, use
 `benchmark/ci_diagnostic.py`. It ranks alpha and beta strings using the
 unrestricted sampled-pool SCI wavefunction, retains the top eight strings per

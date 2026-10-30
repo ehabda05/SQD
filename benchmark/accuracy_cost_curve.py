@@ -19,11 +19,16 @@ def progress_target_time(row, method, threshold):
     return None
 
 
-def summarize(rows, threshold):
+def summarize(rows, threshold, pool_generation_seconds):
     summary = {}
     for method in ("marginal", "standard"):
         target_times = [
             time
+            for row in rows
+            if (time := progress_target_time(row, method, threshold)) is not None
+        ]
+        end_to_end_target_times = [
+            time + pool_generation_seconds[row["seed"]]
             for row in rows
             if (time := progress_target_time(row, method, threshold)) is not None
         ]
@@ -35,6 +40,11 @@ def summarize(rows, threshold):
             "mean_time_to_target_seconds": (
                 float(np.mean(target_times)) if target_times else None
             ),
+            "mean_end_to_end_time_to_target_seconds": (
+                float(np.mean(end_to_end_target_times))
+                if end_to_end_target_times
+                else None
+            ),
             "median_time_to_target_seconds": (
                 float(np.median(target_times)) if target_times else None
             ),
@@ -43,6 +53,14 @@ def summarize(rows, threshold):
             ),
             "mean_total_elapsed_seconds": float(
                 np.mean([row[f"{method}_elapsed"] for row in rows])
+            ),
+            "mean_end_to_end_elapsed_seconds": float(
+                np.mean(
+                    [
+                        row[f"{method}_elapsed"] + pool_generation_seconds[row["seed"]]
+                        for row in rows
+                    ]
+                )
             ),
             "mean_classical_elapsed_seconds": (
                 float(np.mean([row[f"{method}_classical_elapsed"] for row in rows]))
@@ -75,6 +93,12 @@ def main():
         help="Per-spin cap and results.json path; repeat once per cap.",
     )
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument(
+        "--pool-results",
+        type=Path,
+        required=True,
+        help="Sampling results.json containing sampling_seconds per schedule/seed.",
+    )
     args = parser.parse_args()
 
     report = {
@@ -82,16 +106,28 @@ def main():
         "primary_threshold_mha": 10.0,
         "caps": {},
     }
+    pool_rows = json.loads(args.pool_results.read_text())
+    pool_generation_seconds = {
+        int(row["seed"]): float(row["sampling_seconds"])
+        for row in pool_rows
+        if int(row["schedule"]) == 0
+    }
     for cap, path_text in args.input:
         rows = json.loads(Path(path_text).read_text())
         if not rows:
             raise ValueError(f"No rows in {path_text}")
+        missing = {int(row["seed"]) for row in rows} - set(pool_generation_seconds)
+        if missing:
+            raise ValueError(f"Missing pool-generation timing for seeds: {sorted(missing)}")
         report["caps"][str(int(cap))] = {
             "rows": len(rows),
             "seeds": sorted({int(row["seed"]) for row in rows}),
             "schedule_indices": sorted({int(row["schedule"]) for row in rows}),
+            "mean_pool_generation_seconds": float(
+                np.mean([pool_generation_seconds[row["seed"]] for row in rows])
+            ),
             "thresholds": {
-                str(threshold): summarize(rows, threshold)
+                str(threshold): summarize(rows, threshold, pool_generation_seconds)
                 for threshold in THRESHOLDS_MHA
             },
         }
