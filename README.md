@@ -245,6 +245,36 @@ implementation, so this configuration freezes the matched protocol but does
 not claim a ZenKO result. Simulator runtime must remain explicitly separate
 from quantum-hardware execution time.
 
+## N2/STO-3G baseline comparison
+
+The manageable six-orbital N2 comparison is frozen in
+`benchmark/n2_original_baseline_config.json`. It reuses 30 identical saved
+SqDRIFT pools (seeds 52--81) and compares Standard SQD, the repository's
+`qiskit-addon-sqd` `TrimPolicy` wrapper, and accumulated-marginal selection.
+The pool protocol is 20 circuits, 100 QDrift steps, 256 shots per circuit, and
+evolution times 5 and 20. `benchmark/compare_pools.py` records paired energy,
+target attainment, solve dimensions, solve count, determinant work, and
+classical processing time for all three capped methods.
+
+On these development pools at cap 8, the mean errors were 26.254 mHa for
+Standard SQD, 21.142 mHa for merge-only TrimPolicy, 24.867 mHa for pruning,
+and 18.873 mHa for accumulated-marginal selection. The 10 mHa target was not
+reached by any capped method; the 25 mHa target was reached on 19, 24, 19,
+and 23 pools respectively. Mean classical processing was 0.078 s, 0.152 s,
+0.121 s, and 0.064 s, with mean determinant work 461, 1,279, 948, and 525
+respectively. The unrestricted sampled-product reference averaged 2.687 mHa
+error and is outside the cap.
+
+This is a same-pool selection comparison, not a full-method reproduction.
+No separate author-provided SqDRIFT or Trim-SQD workflow implementation was
+found in the repository. The sampler uses the installed
+`qiskit-fermions` `QDriftTrotterization` path, and the Trim-SQD baseline uses
+the installed Addon SQD `TrimPolicy`; neither result should be described as
+an independently verified reproduction of an external paper protocol.
+Historical pool summaries contain shots, circuit count, and CX totals but not
+per-circuit depth, so depth must be captured in a fresh sampler audit before
+making a complete circuit-cost claim.
+
 For a reference-informed upper-bound diagnostic, use
 `benchmark/ci_diagnostic.py`. It ranks alpha and beta strings using the
 unrestricted sampled-pool SCI wavefunction, retains the top eight strings per

@@ -1,0 +1,55 @@
+{
+  "status": "development_comparison_before_paper_sized_run",
+  "molecule": "n2",
+  "geometry_angstrom": 1.09,
+  "basis": "STO-3G",
+  "active_orbitals": 6,
+  "active_electrons": 6,
+  "pool_source": "results/n2-primary-sampling-52-81",
+  "pool_seeds": [52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81],
+  "schedule_indices": [0],
+  "solver": {
+    "samples_per_batch": 25,
+    "num_batches": 3,
+    "max_iterations": 5,
+    "per_spin_cap": 8,
+    "seed_policy": "pool seed",
+    "reference": "registered PySCF FCI energy for this six-orbital active space"
+  },
+  "methods": {
+    "standard_sqd": {
+      "implementation": "repository run_sqd using qiskit-addon-sqd solve_sci_batch",
+      "sampling": "saved SqDRIFT pool",
+      "omitted_components": []
+    },
+    "trim_sqd": {
+      "implementation": "repository run_trim_sqd using qiskit-addon-sqd TrimPolicy",
+      "trim_ratio": 0.5,
+      "carryover_ratio": 0.5,
+      "carryover_threshold": 0.0001,
+      "max_strings_per_trim": 128,
+      "max_carryover": 128,
+      "omitted_components": [
+        "No separate author-provided Trim-SQD workflow was found in this repository.",
+        "This is the library TrimPolicy workflow, not a claim to reproduce an external paper implementation."
+      ]
+    },
+    "accumulated_marginal": {
+      "implementation": "frozen repository marginal selector",
+      "score": "mean marginal CI weight over batches containing the string",
+      "absent_string_policy": "omit",
+      "tie_break": "ascending integer CI-string value",
+      "candidate": "sorted top-eight alpha and beta strings",
+      "omitted_components": []
+    }
+  },
+  "reported_resources": [
+    "paired energy errors",
+    "10 mHa target attainment and failures",
+    "shots and circuits from saved pool metadata",
+    "CX counts and circuit depth from saved pool metadata",
+    "complete classical processing time",
+    "solve dimensions and determinant work",
+    "classical solve count"
+  ]
+}
