@@ -47,6 +47,7 @@ def run_marginal(prepared, counts, args, seed):
 
     selected_a = select_top_strings(alpha_scores, args.strings_per_spin)
     selected_b = select_top_strings(beta_scores, args.strings_per_spin)
+    candidate_start = perf_counter()
     candidate = solve_sci(
         (selected_a, selected_b),
         prepared.h1,
@@ -54,6 +55,7 @@ def run_marginal(prepared, counts, args, seed):
         norb=prepared.num_orbitals,
         nelec=prepared.num_electrons,
     )
+    candidate_solve_elapsed = perf_counter() - candidate_start
     candidate_energy = float(candidate.energy) + prepared.constant_energy
     elapsed = perf_counter() - start
     progress.append((elapsed, candidate_energy, "candidate"))
@@ -67,6 +69,9 @@ def run_marginal(prepared, counts, args, seed):
         "elapsed": elapsed,
         "progress": progress,
         "solve_count": collection.classical_solve_count + 1,
+        "classical_solve_elapsed": (
+            collection.classical_solve_elapsed + candidate_solve_elapsed
+        ),
         "determinants": sum(collection.classical_solve_dimensions)
         + selected_a.size * selected_b.size,
         "selected_alpha": selected_a.tolist(),
@@ -99,6 +104,9 @@ def run_standard(prepared, counts, args, seed, budget):
         "elapsed": perf_counter() - start,
         "progress": progress,
         "solve_count": sum(result.classical_solve_count for result in runs),
+        "classical_solve_elapsed": sum(
+            result.classical_solve_elapsed for result in runs
+        ),
         "determinants": sum(
             sum(result.classical_solve_dimensions) for result in runs
         ),
@@ -216,6 +224,14 @@ def main() -> None:
                     "budget_seconds": budget_target,
                     "marginal_elapsed": marginal["elapsed"],
                     "standard_elapsed": standard["elapsed"],
+                    "marginal_classical_elapsed": marginal["classical_solve_elapsed"],
+                    "standard_classical_elapsed": standard[
+                        "classical_solve_elapsed"
+                    ],
+                    "marginal_sampling_elapsed": marginal["elapsed"]
+                    - marginal["classical_solve_elapsed"],
+                    "standard_sampling_elapsed": standard["elapsed"]
+                    - standard["classical_solve_elapsed"],
                     "marginal_overshoot": marginal["elapsed"]
                     - budget_target,
                     "standard_overshoot": standard["elapsed"]

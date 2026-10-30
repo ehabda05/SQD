@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Callable
 
 import numpy as np
@@ -20,6 +21,7 @@ class SQDResult:
     subspace_dimension: int
     classical_solve_count: int
     classical_solve_dimensions: tuple[int, ...]
+    classical_solve_elapsed: float
     sci_result: SCIResult
 
 
@@ -82,13 +84,16 @@ def run_sqd(
 
     bit_array = BitArray.from_counts(counts)
     classical_solve_dimensions: list[int] = []
+    classical_solve_elapsed = 0.0
 
     def solve_and_record(ci_strings, one_body_tensor, two_body_tensor, norb, nelec):
+        nonlocal classical_solve_elapsed
         ci_strings = canonicalize_ci_strings(ci_strings)
         classical_solve_dimensions.extend(
             int(strings_a.size * strings_b.size)
             for strings_a, strings_b in ci_strings
         )
+        solve_start = perf_counter()
         results = solve_sci_batch(
             ci_strings,
             one_body_tensor,
@@ -96,6 +101,7 @@ def run_sqd(
             norb,
             nelec,
         )
+        classical_solve_elapsed += perf_counter() - solve_start
         if batch_observer is not None:
             batch_observer(ci_strings, results)
         return results
@@ -138,5 +144,6 @@ def run_sqd(
         subspace_dimension=int(result.sci_state.amplitudes.size),
         classical_solve_count=len(classical_solve_dimensions),
         classical_solve_dimensions=tuple(classical_solve_dimensions),
+        classical_solve_elapsed=classical_solve_elapsed,
         sci_result=result,
     )

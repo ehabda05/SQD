@@ -172,6 +172,16 @@ and declares success only when the paired 95% confidence interval for
 Standard minus marginal error is strictly positive and marginal solver time
 is no greater. The five exploratory seeds 122--126 remain separate.
 
+The saved-pool accuracy--cost curve uses those same 30 schedule-0 pools at
+per-spin caps 12, 16, 24, and 32. `benchmark/accuracy_cost_curve.py` reports
+attainment and time-to-target for 50, 25, 10, and 5 mHa absolute error
+thresholds. The primary target is 10 mHa measured against each pool's exact
+sampled-product reference. The comparison records total elapsed time,
+classical solver time, sampling/other time, solve dimensions, and completed
+solve progress; a run that never reaches a threshold is counted as a failure.
+The curve is exploratory and does not change the frozen cap-12 confirmation
+claim.
+
 For a reference-informed upper-bound diagnostic, use
 `benchmark/ci_diagnostic.py`. It ranks alpha and beta strings using the
 unrestricted sampled-pool SCI wavefunction, retains the top eight strings per
