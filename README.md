@@ -144,10 +144,11 @@ freezing this configuration, then evaluate the primary 200-step schedule
 tuning the scoring rule or solver settings.
 
 For saved-pool cap studies, use `benchmark/reference_pools.py` to create one
-exact fixed-sector matrix reference per pool. It builds the complete sector
-matrix and extracts the sampled-product principal submatrix; do not average
-unrestricted and capped rows or recompute references through repeated SCI
-iterations.
+exact fixed-sector matrix reference per pool. Run reference generation with
+`OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1` for reproducible PySCF matrix
+construction. The tool builds the complete sector matrix and extracts the
+sampled-product principal submatrix; do not average unrestricted and capped
+rows or recompute references through repeated SCI iterations.
 
 For a reference-informed upper-bound diagnostic, use
 `benchmark/ci_diagnostic.py`. It ranks alpha and beta strings using the
