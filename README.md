@@ -150,6 +150,12 @@ construction. The tool builds the complete sector matrix and extracts the
 sampled-product principal submatrix; do not average unrestricted and capped
 rows or recompute references through repeated SCI iterations.
 
+The corrected N₂ cap-8 confirmation protocol is frozen in
+`benchmark/n2_cap8_evaluation_config.json`. It records the practical solver
+seed policy, stopping rule, warm-up and timing procedure, and reference
+threading. Reference reproducibility is stabilized by this protocol; practical
+solver call-history independence remains an explicit limitation.
+
 For a reference-informed upper-bound diagnostic, use
 `benchmark/ci_diagnostic.py`. It ranks alpha and beta strings using the
 unrestricted sampled-pool SCI wavefunction, retains the top eight strings per

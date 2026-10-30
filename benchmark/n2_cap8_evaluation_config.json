@@ -1,0 +1,38 @@
+{
+  "molecule": "n2",
+  "schedule": {
+    "times": [5.0, 20.0],
+    "num_steps": 100,
+    "circuits_per_time": 10,
+    "shots_per_circuit": 256
+  },
+  "seeds": [82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111],
+  "solver": {
+    "samples_per_batch": 25,
+    "num_batches": 3,
+    "max_iterations": 5,
+    "max_dim": 8,
+    "strings_per_spin": 8,
+    "solver_seed_offset": 0
+  },
+  "selection": {
+    "score": "mean marginal CI weight over batches containing the string",
+    "absent_string_policy": "omit",
+    "tie_break": "ascending integer CI-string value",
+    "candidate": "sorted top-eight alpha and beta Cartesian product",
+    "acceptance": "retain lowest solved energy"
+  },
+  "comparison": {
+    "warm_up": true,
+    "target": "marginal-selection pilot elapsed time per pool",
+    "standard_stopping": "complete Standard SQD restarts until target is met or exceeded",
+    "execution_order": "alternate by schedule plus seed",
+    "progress": "record only after completed solves",
+    "reference": "exact sampled-product principal submatrix per pool"
+  },
+  "reference_environment": {
+    "OMP_NUM_THREADS": 1,
+    "OPENBLAS_NUM_THREADS": 1
+  },
+  "limitation": "Reference reproducibility is stabilized; practical solver call-history independence is not separately established."
+}
