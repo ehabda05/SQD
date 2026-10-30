@@ -277,6 +277,11 @@ found in the repository. The sampler uses the installed
 `qiskit-fermions` `QDriftTrotterization` path, and the Trim-SQD baseline uses
 the installed Addon SQD `TrimPolicy`; neither result should be described as
 an independently verified reproduction of an external paper protocol.
+The component-by-component external-source review is frozen in
+`benchmark/baseline_fidelity_checklist.json`. It marks the current sampler's
+missing diagonal-term filtering and group ordering as adaptations, and
+records the TrimPolicy batch, ranking, pruning, merging, and carryover
+behavior separately from the accumulated-marginal replacements.
 Historical pool summaries contain shots, circuit count, and summed circuit CX
 counts but not per-circuit depth. `benchmark/sampling_sweep.py` now records
 per-circuit CX counts and depths, summed depth, and shot-weighted gate totals

@@ -256,14 +256,20 @@ def main() -> None:
                     "mean_error_mha": sum(
                         row["error_mha"] for row in selected
                     ) / len(selected),
-                    "stddev_error_mha": statistics.stdev(
-                        row["error_mha"] for row in selected
+                    "stddev_error_mha": (
+                        statistics.stdev(row["error_mha"] for row in selected)
+                        if len(selected) > 1
+                        else 0.0
                     ),
                     "mean_delta_vs_standard_mha": sum(
                         row["delta_vs_standard_mha"] for row in selected
                     ) / len(selected),
-                    "stddev_delta_vs_standard_mha": statistics.stdev(
-                        row["delta_vs_standard_mha"] for row in selected
+                    "stddev_delta_vs_standard_mha": (
+                        statistics.stdev(
+                            row["delta_vs_standard_mha"] for row in selected
+                        )
+                        if len(selected) > 1
+                        else 0.0
                     ),
                     "mean_solve_seconds": sum(
                         row["solve_seconds"] for row in selected

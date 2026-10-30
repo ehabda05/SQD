@@ -1,0 +1,145 @@
+{
+  "status": "fidelity_review_frozen_before_fresh_comparison",
+  "sources": [
+    {
+      "name": "SqDRIFT paper",
+      "url": "https://arxiv.org/abs/2508.02578",
+      "repository_checked": "https://github.com/Qiskit/qiskit-fermions"
+    },
+    {
+      "name": "Qiskit Fermions SqDRIFT guide",
+      "url": "https://github.com/Qiskit/qiskit-fermions/blob/main/docs/guides/sqdrift.rst",
+      "repository_checked": "https://github.com/Qiskit/qiskit-fermions"
+    },
+    {
+      "name": "Qiskit Addon SQD TrimPolicy",
+      "url": "https://github.com/Qiskit/qiskit-addon-sqd/blob/main/qiskit_addon_sqd/trim.py",
+      "repository_checked": "https://github.com/Qiskit/qiskit-addon-sqd"
+    }
+  ],
+  "external_repository_finding": "The inspected upstream Qiskit repositories contain the library components used here. No separate author-provided end-to-end SqDRIFT or Trim-SQD workflow was identified in the inspected sources; this is not evidence that no external author code exists.",
+  "sqdrift": [
+    {
+      "component": "initial_state",
+      "published_behavior": "Prepare the electronic Hartree-Fock occupation state.",
+      "implementation": "quantum/SqDRIFT.py hartree_fock_occupation and InitializeModes",
+      "status": "matched"
+    },
+    {
+      "component": "Hamiltonian_normal_ordering",
+      "published_behavior": "Normal-order, simplify, and canonicalize the FermionOperator before grouping.",
+      "implementation": "normal_ordered, simplify(atol=1e-14), canonical_order",
+      "status": "matched",
+      "adaptation": "Uses repository tolerance 1e-14 rather than the guide example's 1e-16."
+    },
+    {
+      "component": "Hamiltonian_grouping",
+      "published_behavior": "Group electronic-structure terms and order groups contiguously for lookup efficiency.",
+      "implementation": "group_terms_by_electronic_structure is called; group_order is not called.",
+      "status": "adapted",
+      "required_action": "Add diagonal-term filtering and group_order, or label all results as an adapted sampler."
+    },
+    {
+      "component": "diagonal_term_filtering",
+      "published_behavior": "Filter occupation-diagonal terms, including constant and number-operator terms, before evolution.",
+      "implementation": "No filter_diagonal_terms call.",
+      "status": "omitted",
+      "impact": "Changes qDRIFT coefficient distribution and circuit resources, although diagonal terms do not change occupations."
+    },
+    {
+      "component": "randomized_evolution",
+      "published_behavior": "Use FermionicQDrift randomized evolution with a configured number of groups and random seed.",
+      "implementation": "QDriftTrotterization pass through the repository's Qiskit Fermions dependency.",
+      "status": "partially_matched",
+      "adaptation": "The exact pass/API path and group ordering differ from the current upstream guide path."
+    },
+    {
+      "component": "time_schedule",
+      "published_behavior": "Use the declared evolution-time schedule and QDrift step counts.",
+      "implementation": "Configurable times, circuits_per_time, num_steps.",
+      "status": "matched_for_declared_experiments"
+    },
+    {
+      "component": "sampling_allocation",
+      "published_behavior": "Declare circuits and shots per circuit; compare total quantum evaluations and shots.",
+      "implementation": "Configurable circuits_per_time and shots_per_circuit with per-circuit metadata.",
+      "status": "matched"
+    },
+    {
+      "component": "sector_recovery",
+      "published_behavior": "The published workflow may apply sampling/recovery handling outside circuit generation.",
+      "implementation": "Invalid particle-number outcomes raise an error; no recovery is applied.",
+      "status": "omitted",
+      "adaptation": "Results must be labeled no-recovery SqDRIFT unless a paper-specific recovery rule is implemented."
+    },
+    {
+      "component": "carryover",
+      "published_behavior": "SqDRIFT circuit sampling itself has no TrimPolicy carryover; SQD policy carryover is a separate solver concern.",
+      "implementation": "No circuit carryover; Standard SQD or TrimPolicy controls solver carryover.",
+      "status": "matched_with_scope"
+    }
+  ],
+  "trim_sqd": [
+    {
+      "component": "batch_construction",
+      "published_behavior": "Partition one sampled pool into disjoint batches.",
+      "implementation": "qiskit-addon-sqd TrimPolicy through run_trim_sqd.",
+      "status": "matched_library_behavior"
+    },
+    {
+      "component": "per_batch_ranking",
+      "published_behavior": "Rank CI strings by summed squared amplitudes over the opposite spin sector.",
+      "implementation": "TrimPolicy library implementation.",
+      "status": "matched_library_behavior"
+    },
+    {
+      "component": "pruning",
+      "published_behavior": "Retain the configured fraction per spin sector, with optional maximum strings.",
+      "implementation": "trim_ratio=0.5 and max_strings_per_trim=128 in run_trim_sqd.",
+      "status": "adapted",
+      "adaptation": "These are experiment settings, not the library defaults."
+    },
+    {
+      "component": "merging",
+      "published_behavior": "Merge survivors from all batches and perform an additional merged diagonalization.",
+      "implementation": "TrimPolicy library implementation.",
+      "status": "matched_library_behavior"
+    },
+    {
+      "component": "carryover",
+      "published_behavior": "Apply amplitude threshold, carryover ratio, and max carryover to seed the next iteration.",
+      "implementation": "carryover_threshold=1e-4, carryover_ratio=0.5, max_carryover=128.",
+      "status": "adapted",
+      "adaptation": "Explicit settings are frozen in n2_original_baseline_config.json."
+    },
+    {
+      "component": "recovery_or_expansion",
+      "published_behavior": "No additional external recovery or excitation expansion is part of the inspected TrimPolicy implementation.",
+      "implementation": "No additional configuration expansion.",
+      "status": "matched_library_behavior"
+    }
+  ],
+  "accumulated_marginal": [
+    {
+      "component": "collection",
+      "replacement": "Uses Standard SQD restricted batch solves to collect marginal CI weights."
+    },
+    {
+      "component": "ranking",
+      "replacement": "Averages each string only over batches containing it; absent strings are omitted."
+    },
+    {
+      "component": "pruning_and_merging",
+      "replacement": "Replaces per-batch TrimPolicy pruning and merged carryover with one top-k Cartesian candidate."
+    },
+    {
+      "component": "candidate",
+      "replacement": "Selects top-k strings per spin, breaks ties by integer CI-string value, sorts canonically, and solves once."
+    },
+    {
+      "component": "acceptance",
+      "replacement": "Retains the lower energy of the collection solve and candidate solve."
+    }
+  ],
+  "comparison_rule": "Any unmatched or adapted component must be named in the result metadata; no fresh result may be called a faithful published-method reproduction without resolving the marked items."
+}
