@@ -1,0 +1,94 @@
+{
+  "status": "protocol_frozen_zenko_runner_required",
+  "source": {
+    "paper": "ZenKO: Guided and Iterative Quantum-Classical Method for Molecular Electronic Structure using Sample-Based Quantum Diagonalization",
+    "attachment": "C:/Users/Escander_Habda/Downloads/ZenKO_Highlights.pdf",
+    "paper_settings": {
+      "molecule": "N2",
+      "bond_length_angstrom": 1.0,
+      "basis": "6-31G",
+      "active_orbitals": 16,
+      "active_electrons": 10,
+      "qubits": 32,
+      "fixed_spin_configuration_count": 19079424,
+      "shots_per_quantum_evaluation": 10000,
+      "sqd_energy_convergence_mha": 0.1,
+      "occupancy_tolerance": 0.001,
+      "amplitude_retention_threshold": 0.00001
+    }
+  },
+  "common_problem": {
+    "registry_name": "n2-zenko",
+    "hamiltonian": "same prepared h1, h2, and constant energy for both methods",
+    "reference": "FCI or an explicitly identified trusted reference; do not mix references",
+    "fresh_seeds": [157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186],
+    "primary_error_target_mha": 10.0,
+    "secondary_error_target_mha": 1.6,
+    "simulator_runtime": "report separately; not quantum-hardware execution time"
+  },
+  "drift_trim": {
+    "method": "SqDRIFT sampling plus frozen accumulated-marginal selection",
+    "per_spin_cap": 32,
+    "score": "mean marginal CI weight over batches containing the string",
+    "absent_string_policy": "omit",
+    "tie_break": "ascending integer CI-string value",
+    "candidate": "sorted top-32 alpha and beta Cartesian product",
+    "acceptance": "retain lowest solved energy",
+    "sampling_evaluations": "same shot and circuit-evaluation budget as ZenKO",
+    "classical_processing": "include scoring, selection, batching, all candidate solves, and all restart solves"
+  },
+  "zenko": {
+    "method": "paper-defined discovery and refinement",
+    "initialization": "CCSD amplitudes and the same Hamiltonian",
+    "ansatz": "one-layer spin-balanced local UCJ",
+    "discovery": {
+      "parameters": "T2",
+      "steps": 30,
+      "learning_rate": 0.25,
+      "exclusion_weight": 10.0,
+      "hamiltonian_coupling_weight": 0.3,
+      "early_stop_probability_mass": 0.25
+    },
+    "refinement": {
+      "parameters": "T1",
+      "steps": 30,
+      "learning_rate": 0.02,
+      "early_stop_probability_mass": 0.75
+    },
+    "outer_iterations_max": 10,
+    "energy_convergence_mha": 0.1,
+    "spsa_perturbation": 0.1,
+    "spsa_evaluations_per_update": 3,
+    "adam": {
+      "beta1": 0.9,
+      "beta2": 0.999,
+      "epsilon": 0.00000001
+    },
+    "maximum_quantum_evaluations": 1800,
+    "paper_reported_average_quantum_evaluations": 573
+  },
+  "accounting": {
+    "quantum": [
+      "circuit evaluations",
+      "shots",
+      "two-qubit gate count",
+      "circuit depth"
+    ],
+    "classical": [
+      "diagonalization time",
+      "complete processing time",
+      "configuration scoring and selection",
+      "optimizer evaluations and parameter updates",
+      "all Hamiltonian construction and restart work"
+    ],
+    "report": [
+      "paired energy errors",
+      "threshold attainment and failures",
+      "time to target",
+      "quantum totals",
+      "classical totals",
+      "simulator wall-clock time separately"
+    ]
+  },
+  "stop_rule": "Do not tune either method on seeds 157-186; report all failures and budget overshoot."
+}

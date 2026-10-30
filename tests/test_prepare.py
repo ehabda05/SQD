@@ -124,6 +124,14 @@ class PreparationTests(unittest.TestCase):
         self.assertEqual(result.h1.shape, (6, 6))
         self.assertEqual(result.h2.shape, (6, 6, 6, 6))
 
+    def test_n2_zenko_active_space(self):
+        result = prepare_registered("n2-zenko", compute_fci=False)
+
+        self.assertEqual(result.num_electrons, (5, 5))
+        self.assertEqual(result.num_orbitals, 16)
+        self.assertEqual(result.active_orbitals, tuple(range(2, 18)))
+        self.assertIsNone(result.fci_energy)
+
     def test_fci_cache_reuses_reference(self):
         from pathlib import Path
         from tempfile import TemporaryDirectory

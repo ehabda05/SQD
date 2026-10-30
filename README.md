@@ -193,6 +193,28 @@ SQD. Threshold time-to-target is reported both as classical processing time
 and with pool generation added; successful-method averages use only runs that
 reached the threshold, while failures remain in the attainment denominator.
 
+## Matched ZenKO benchmark
+
+The attached ZenKO paper defines a larger N2 benchmark than the development
+`n2-large` case: 1.0 Angstrom, 6-31G, 16 active orbitals, and 10 active
+electrons after freezing one core orbital on each atom. This is registered as
+`n2-zenko`; FCI is disabled by default because its fixed-spin space has
+19,079,424 configurations. The frozen comparison protocol is recorded in
+`benchmark/zenko_matched_benchmark_config.json`.
+
+The protocol uses fresh seeds 157--186, a 10 mHa primary target, a per-spin
+cap of 32 for accumulated-marginal selection, and the paper's ZenKO settings:
+10,000 shots per quantum evaluation, 0.1 mHa SQD convergence, 30-step T2
+discovery, 30-step T1 refinement, and at most 10 outer iterations. Both
+methods must use the same prepared Hamiltonian and report circuits, shots,
+gate counts, diagonalization time, complete classical processing, optimizer
+work, simulator wall-clock time, threshold attainment, and failures.
+
+The repository does not yet contain a ZenKO runner or its UCJ/CCSD optimizer
+implementation, so this configuration freezes the matched protocol but does
+not claim a ZenKO result. Simulator runtime must remain explicitly separate
+from quantum-hardware execution time.
+
 For a reference-informed upper-bound diagnostic, use
 `benchmark/ci_diagnostic.py`. It ranks alpha and beta strings using the
 unrestricted sampled-pool SCI wavefunction, retains the top eight strings per
