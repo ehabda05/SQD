@@ -20,7 +20,13 @@
   "common_problem": {
     "registry_name": "n2-zenko",
     "hamiltonian": "same prepared h1, h2, and constant energy for both methods",
-    "reference": "FCI or an explicitly identified trusted reference; do not mix references",
+    "reference": {
+      "method": "PySCF direct_spin1 iterative FCI",
+      "total_energy_hartree": -109.04667177831362,
+      "convergence_tolerance": 1e-10,
+      "converged": true,
+      "validation_record": "results/n2-zenko-iterative-reference.json"
+    },
     "fresh_seeds": [157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186],
     "primary_error_target_mha": 10.0,
     "secondary_error_target_mha": 1.6,

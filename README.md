@@ -210,6 +210,21 @@ methods must use the same prepared Hamiltonian and report circuits, shots,
 gate counts, diagonalization time, complete classical processing, optimizer
 work, simulator wall-clock time, threshold attainment, and failures.
 
+A paper-aligned reference was computed with the bounded iterative
+`benchmark/iterative_reference.py` path using PySCF `direct_spin1.FCI`,
+`conv_tol=1e-10`, and single-threaded matrix construction. It converged to
+`-109.04667177831362 Ha` for this exact Hamiltonian and active space in about
+719 seconds. The generated reference record is
+`results/n2-zenko-iterative-reference.json`; its convergence flag and solver
+settings must accompany any error claim.
+
+The feasibility pilot in `benchmark/paper_n2_pilot.py` uses one non-confirmation
+seed, 10,000 shots, and Aer matrix-product-state simulation. It completed a
+32-qubit nonzero-time circuit without allocating the approximately 64 GiB
+complex128 statevector. The pilot is only an execution and memory check: its
+one-step circuit produced one unique configuration and is not evidence of
+sampling accuracy. Seeds 157--186 remain reserved.
+
 The repository does not yet contain a ZenKO runner or its UCJ/CCSD optimizer
 implementation, so this configuration freezes the matched protocol but does
 not claim a ZenKO result. Simulator runtime must remain explicitly separate
