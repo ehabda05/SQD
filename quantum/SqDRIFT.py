@@ -1,5 +1,6 @@
 from collections import Counter
 from dataclasses import dataclass
+from typing import Any, Mapping
 
 import numpy as np
 from qiskit import QuantumCircuit, transpile
@@ -59,6 +60,8 @@ def sample_sqdrift(
     num_steps: int = 20,
     shots_per_circuit: int = 256,
     seed: int = 42,
+    simulator_method: str = "statevector",
+    simulator_options: Mapping[str, Any] | None = None,
 ) -> SqDriftResult:
     for name, value in (
         ("circuits_per_time", circuits_per_time),
@@ -70,6 +73,10 @@ def sample_sqdrift(
 
     if type(seed) is not int or seed < 0:
         raise ValueError("seed must be a nonnegative integer.")
+    if not isinstance(simulator_method, str) or not simulator_method:
+        raise ValueError("simulator_method must be a non-empty string.")
+    if simulator_options is not None and not isinstance(simulator_options, Mapping):
+        raise ValueError("simulator_options must be a mapping.")
 
     times = tuple(float(t) for t in times)
     if not times or any(not np.isfinite(t) or t < 0 for t in times):
@@ -88,7 +95,10 @@ def sample_sqdrift(
         two_body_physicist_order=False,
     )
 
-    simulator = AerSimulator(method="statevector", max_parallel_threads=2,)
+    options = {"max_parallel_threads": 2}
+    if simulator_options is not None:
+        options.update(simulator_options)
+    simulator = AerSimulator(method=simulator_method, **options)
     rng = np.random.default_rng(seed)
 
     circuits = []

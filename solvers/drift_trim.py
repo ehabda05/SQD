@@ -19,7 +19,7 @@ class DriftTrimResult:
         return self.solution.total_energy
 
     @property
-    def error_mha(self) -> float:
+    def error_mha(self) -> float | None:
         return self.solution.error_mha
 
     @property

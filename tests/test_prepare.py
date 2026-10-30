@@ -114,6 +114,28 @@ class PreparationTests(unittest.TestCase):
             atol=1e-9,
         )
 
+    def test_h2o_zenko_active_space(self):
+        result = prepare_registered("h2o", compute_fci=False)
+
+        self.assertEqual(result.num_electrons, (4, 4))
+        self.assertEqual(result.num_orbitals, 6)
+        self.assertEqual(result.active_orbitals, (1, 2, 3, 4, 5, 6))
+        self.assertIsNone(result.fci_energy)
+        self.assertEqual(result.h1.shape, (6, 6))
+        self.assertEqual(result.h2.shape, (6, 6, 6, 6))
+
+    def test_fci_cache_reuses_reference(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as directory:
+            first = prepare_registered("h2", fci_cache_dir=directory)
+            cache_files = list(Path(directory).glob("*.json"))
+            self.assertEqual(len(cache_files), 1)
+            second = prepare_registered("h2", fci_cache_dir=directory)
+
+        self.assertEqual(first.fci_energy, second.fci_energy)
+
     def test_invalid_spaces(self):
         invalid_settings = [
             {"active_electrons": 3},

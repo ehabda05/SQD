@@ -1,4 +1,7 @@
 from dataclasses import dataclass
+import hashlib
+import json
+from pathlib import Path
 from typing import Sequence
 
 import numpy as np
@@ -18,7 +21,7 @@ class PreparedHamiltonian:
     constant_energy: float
     nuclear_repulsion: float
     hf_energy: float
-    fci_energy: float
+    fci_energy: float | None
     mo_coeff: np.ndarray
 
     @property
@@ -34,12 +37,16 @@ def prepare_molecule(
     orbital_indices: Sequence[int] | None = None,
     conv_tol: float = 1e-10,
     max_cycle: int = 100,
+    compute_fci: bool = True,
+    fci_cache_dir: str | Path | None = None,
 ) -> PreparedHamiltonian:
     if molecule.spin != 0:
         raise ValueError("Only closed-shell singlets are supported.")
 
     if conv_tol <= 0 or max_cycle < 1:
         raise ValueError("conv_tol and max_cycle must be positive.")
+    if not isinstance(compute_fci, bool):
+        raise ValueError("compute_fci must be a boolean.")
 
     mol = gto.M(
         atom=molecule.to_pyscf_string(),
@@ -131,14 +138,39 @@ def prepare_molecule(
 
     num_electrons = (nelec // 2, nelec // 2)
 
-    solver = fci.direct_spin0.FCI(mol)
-    solver.conv_tol = conv_tol
-    solver.max_cycle = max_cycle
-
-    fci_energy, _ = solver.kernel(h1, h2, ncas, num_electrons, ecore=constant_energy,)
-
-    if not solver.converged:
-        raise RuntimeError(f"Active-space FCI failed to converge for {molecule.name}.")
+    fci_energy = None
+    if compute_fci:
+        cache_path = _fci_cache_path(
+            fci_cache_dir,
+            molecule=molecule,
+            active_electrons=nelec,
+            active_orbitals=ncas,
+            orbital_indices=indices,
+            conv_tol=conv_tol,
+            max_cycle=max_cycle,
+        )
+        if cache_path is not None and cache_path.exists():
+            fci_energy = float(json.loads(cache_path.read_text())["fci_energy"])
+        else:
+            solver = fci.direct_spin0.FCI(mol)
+            solver.conv_tol = conv_tol
+            solver.max_cycle = max_cycle
+            fci_energy, _ = solver.kernel(
+                h1,
+                h2,
+                ncas,
+                num_electrons,
+                ecore=constant_energy,
+            )
+            if not solver.converged:
+                raise RuntimeError(
+                    f"Active-space FCI failed to converge for {molecule.name}."
+                )
+            if cache_path is not None:
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
+                cache_path.write_text(
+                    json.dumps({"fci_energy": float(fci_energy)}, sort_keys=True)
+                )
 
     return PreparedHamiltonian(
         molecule=molecule,
@@ -150,7 +182,7 @@ def prepare_molecule(
         constant_energy=float(constant_energy),
         nuclear_repulsion=float(mol.energy_nuc()),
         hf_energy=float(hf.e_tot),
-        fci_energy=float(fci_energy),
+        fci_energy=None if fci_energy is None else float(fci_energy),
         mo_coeff=np.array(
             coefficients[:, ncore:ncore + ncas]
         ),
@@ -164,3 +196,38 @@ def prepare_registered(name: str, **kwargs) -> PreparedHamiltonian:
     config = dict(MOLECULES[name])
     config.update(kwargs)
     return prepare_molecule(**config)
+
+
+def _fci_cache_path(
+    cache_dir: str | Path | None,
+    *,
+    molecule: Molecule,
+    active_electrons: int,
+    active_orbitals: int,
+    orbital_indices: tuple[int, ...],
+    conv_tol: float,
+    max_cycle: int,
+) -> Path | None:
+    if cache_dir is None:
+        return None
+    key_data = {
+        "molecule": {
+            "name": molecule.name,
+            "atoms": [
+                {"symbol": atom.symbol, "position": list(atom.position)}
+                for atom in molecule.atoms
+            ],
+            "charge": molecule.charge,
+            "spin": molecule.spin,
+            "basis": molecule.basis,
+        },
+        "active_electrons": active_electrons,
+        "active_orbitals": active_orbitals,
+        "orbital_indices": list(orbital_indices),
+        "conv_tol": conv_tol,
+        "max_cycle": max_cycle,
+    }
+    key = hashlib.sha256(
+        json.dumps(key_data, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return Path(cache_dir) / f"{molecule.name.lower()}-{key}.json"

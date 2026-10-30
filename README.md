@@ -48,3 +48,130 @@ be specified separately when implementing the sampler.
 FCI cost grows exponentially; start with H2 and LiH. The tests verify known H2
 energies, integral symmetries, LiH against PySCF CASCI, reconstruction of the HF
 energy including the frozen-core offset, and explicit orbital reordering.
+
+FCI reference calculation can be skipped for production runs with
+`compute_fci=False`. To reuse references between runs, pass `fci_cache_dir`;
+cache keys include geometry, basis, active-space selection, and preparation
+tolerances. In that mode `PreparedHamiltonian.fci_energy` is `None`, and solver
+error fields are also `None`.
+
+The registered H2O case follows the ZenKO-sized setup: STO-3G, 8 active
+electrons in 6 active orbitals, 0.958 Angstrom bonds, and a 104.5 degree angle.
+Use `benchmark/experiment.py` to sample once per seed and compare standard SQD
+with DRIFT-TRIM over identical saved pools and multiple solve caps:
+
+```bash
+python benchmark/experiment.py h2o --seeds 42 43 44
+```
+
+The cap sweep records the maximum actual Cartesian-product dimension for every
+classical solve and marks whether it satisfies the configured per-spin cap.
+To study sampling coverage without trimming at a fixed shot budget, use:
+
+```bash
+python benchmark/sampling_sweep.py h2o --seeds 42 43 44
+```
+
+This compares the unrestricted sampled alpha/beta product with standard SQD
+while varying evolution times and Trotter steps. It reports FCI error, CX
+count, sampling time, solve time, and actual solve dimensions.
+
+To compare selection policies on the saved 100- and 200-step pools without
+resampling:
+
+```bash
+python benchmark/compare_pools.py h2o --schedule-indices 2 3
+```
+
+The unrestricted sampled-product row is a reference outside the configured
+determinant budget. Standard SQD, merge-only (`trim_ratio=1.0`), and pruning
+(`trim_ratio=0.5`) use the same per-spin cap and fixed carryover ratio.
+The comparison report includes per-seed error deltas, standard deviations,
+solver time, diagonalization count, and total determinants diagonalized.
+
+To compare merge-only against Standard SQD at approximately equal classical
+solver time, reuse the saved pools with:
+
+```bash
+python benchmark/equal_cost.py h2o \
+  --pool-dir results/sampling-sweep-45-54 \
+  --schedule-indices 0 1 \
+  --seeds 45 46 47 48 49 50 51 52 53 54
+```
+
+Merge-only establishes the per-pool time target. Standard SQD then performs
+additional independent solver restarts until that time is matched or
+exceeded, retaining its lowest-energy result. All restart solves and
+diagonalized determinant counts are recorded.
+
+An experimental marginal-selection rule can be evaluated with:
+
+```bash
+python benchmark/marginal_selection.py h2o \
+  --pool-dir results/sampling-sweep-45-54 \
+  --schedule-indices 0 1 \
+  --seeds 45 46 47 48 49 50 51 52 53 54
+```
+
+This collects alpha and beta marginal CI weights from each restricted batch
+solve, averages each string's scores over the batches in which it appears,
+and solves the resulting sorted 8-by-8 Cartesian candidate. The collection
+solve, candidate solve, scoring coverage, and total cost are all reported.
+The frozen rule averages each string's marginal weight only over batches in
+which that string is present. Absent strings are omitted rather than assigned
+zero. Ties are broken by the integer CI-string value, and the final candidate
+strings are sorted canonically. The rule is experimental; weights from
+different restricted spaces are not assumed to be physically comparable.
+
+For a same-run, fixed-budget comparison against repeated Standard SQD, use:
+
+```bash
+python benchmark/fair_selection_comparison.py h2o \
+  --pool-dir results/sampling-sweep-45-54 \
+  --budget-seconds 0.04 \
+  --schedule-indices 0 1 \
+  --seeds 45 46 47 48 49 50 51 52 53 54
+```
+
+This warms up each pool, uses a marginal-selection pilot to establish the
+per-pool target, alternates the actual method execution order, records progress
+only after completed solves, and reports budget overshoot and all solve costs.
+
+The frozen held-out protocol is recorded in
+`benchmark/heldout_evaluation_config.json`. Generate new pools only after
+freezing this configuration, then evaluate the primary 200-step schedule
+(index 3) and secondary 100-step schedule (index 2) on seeds 55--84 without
+tuning the scoring rule or solver settings.
+
+For a reference-informed upper-bound diagnostic, use
+`benchmark/ci_diagnostic.py`. It ranks alpha and beta strings using the
+unrestricted sampled-pool SCI wavefunction, retains the top eight strings per
+spin, and solves the resulting 64-determinant space. This uses reference
+information and is not a competitive method:
+
+```bash
+python benchmark/ci_diagnostic.py h2o --pool-dir results/sampling-sweep-45-54
+```
+
+The diagnostic also checks amplitude-to-CI-string alignment, reports retained
+joint wavefunction weight, and evaluates alternating alpha/beta selection.
+The top-64 individual-pair control is reported as a non-Cartesian reference;
+its unique spin-string expansion can exceed the 64-determinant budget.
+
+To audit the selected-space energy against an explicit fixed-spin Hamiltonian,
+run the following on one saved pool:
+
+```bash
+python benchmark/hamiltonian_audit.py \
+  --pool results/sampling-sweep-45-54/pool_1_45.json
+```
+
+The audit constructs the full sampled-product matrix, checks the SCI
+eigenvector residual, and compares the selected subspace eigenvalue with the
+projected unrestricted-vector energy. Selected CI strings are canonicalized
+before solving because the selected-CI implementation requires determinant
+strings in sorted order.
+
+SqDRIFT uses Aer statevector simulation by default. Larger runs can select
+another Aer method, such as `matrix_product_state`, through the
+`simulator_method` and `simulator_options` arguments of `sample_sqdrift`.

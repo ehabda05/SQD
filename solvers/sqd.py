@@ -1,10 +1,12 @@
 from dataclasses import dataclass
+from typing import Callable
 
 import numpy as np
 from qiskit.primitives import BitArray
 from qiskit_addon_sqd.fermion import (
     SCIResult,
     diagonalize_fermionic_hamiltonian,
+    solve_sci_batch,
 )
 
 from chemistry.prepare import PreparedHamiltonian
@@ -14,9 +16,19 @@ from chemistry.prepare import PreparedHamiltonian
 class SQDResult:
     electronic_energy: float
     total_energy: float
-    error_mha: float
+    error_mha: float | None
     subspace_dimension: int
+    classical_solve_count: int
+    classical_solve_dimensions: tuple[int, ...]
     sci_result: SCIResult
+
+
+def canonicalize_ci_strings(ci_strings):
+    """Return CI string pairs in the sorted order required by selected-CI."""
+    return [
+        (np.sort(np.asarray(strings_a)), np.sort(np.asarray(strings_b)))
+        for strings_a, strings_b in ci_strings
+    ]
 
 
 def run_sqd(
@@ -29,6 +41,7 @@ def run_sqd(
     max_dim: int = 256,
     seed: int = 42,
     policy=None,
+    batch_observer: Callable | None = None,
 ) -> SQDResult:
     if not counts:
         raise ValueError("counts must not be empty.")
@@ -68,6 +81,24 @@ def run_sqd(
     ])
 
     bit_array = BitArray.from_counts(counts)
+    classical_solve_dimensions: list[int] = []
+
+    def solve_and_record(ci_strings, one_body_tensor, two_body_tensor, norb, nelec):
+        ci_strings = canonicalize_ci_strings(ci_strings)
+        classical_solve_dimensions.extend(
+            int(strings_a.size * strings_b.size)
+            for strings_a, strings_b in ci_strings
+        )
+        results = solve_sci_batch(
+            ci_strings,
+            one_body_tensor,
+            two_body_tensor,
+            norb,
+            nelec,
+        )
+        if batch_observer is not None:
+            batch_observer(ci_strings, results)
+        return results
 
     result = diagonalize_fermionic_hamiltonian(
         prepared.h1,
@@ -85,6 +116,7 @@ def run_sqd(
         symmetrize_spin=False,
         seed=seed,
         policy=policy,
+        sci_solver=solve_and_record,
     )
 
     electronic_energy = float(result.energy)
@@ -93,10 +125,18 @@ def run_sqd(
     if result.sci_state is None:
         raise RuntimeError("Expected the default solver to return an SCI state.")
 
+    error_mha = (
+        None
+        if prepared.fci_energy is None
+        else 1000 * abs(total_energy - prepared.fci_energy)
+    )
+
     return SQDResult(
         electronic_energy=electronic_energy,
         total_energy=total_energy,
-        error_mha=1000 * abs(total_energy - prepared.fci_energy),
+        error_mha=error_mha,
         subspace_dimension=int(result.sci_state.amplitudes.size),
+        classical_solve_count=len(classical_solve_dimensions),
+        classical_solve_dimensions=tuple(classical_solve_dimensions),
         sci_result=result,
     )
