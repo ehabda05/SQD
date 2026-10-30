@@ -100,6 +100,15 @@ def main() -> None:
                 "shots": pool.total_shots,
                 "circuits": len(pool.circuits),
                 "cx": sum(item["cx_count"] for item in pool.metadata),
+                "cx_counts": [item["cx_count"] for item in pool.metadata],
+                "depths": [item["depth"] for item in pool.metadata],
+                "depth_sum": sum(item["depth"] for item in pool.metadata),
+                "shot_weighted_cx": sum(
+                    item["cx_count"] * args.shots for item in pool.metadata
+                ),
+                "shot_weighted_depth": sum(
+                    item["depth"] * args.shots for item in pool.metadata
+                ),
                 "sampling_seconds": sampling_seconds,
             }
             rows.extend(

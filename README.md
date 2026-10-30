@@ -263,7 +263,13 @@ reached by any capped method; the 25 mHa target was reached on 19, 24, 19,
 and 23 pools respectively. Mean classical processing was 0.078 s, 0.152 s,
 0.121 s, and 0.064 s, with mean determinant work 461, 1,279, 948, and 525
 respectively. The unrestricted sampled-product reference averaged 2.687 mHa
-error and is outside the cap.
+error and is outside the cap. Accumulated marginal therefore used about 14%
+more summed solve dimensions than Standard SQD (525 versus 461), while its
+reported classical processing time was about 18% lower (0.064 versus 0.078
+seconds). Summed dimensions are a workload indicator, not a direct runtime
+or hardware-cost measure. On this small problem, the unrestricted solve was
+both more accurate and faster; this experiment isolates capped selection
+behavior rather than establishing an overall computational advantage.
 
 This is a same-pool selection comparison, not a full-method reproduction.
 No separate author-provided SqDRIFT or Trim-SQD workflow implementation was
@@ -271,9 +277,20 @@ found in the repository. The sampler uses the installed
 `qiskit-fermions` `QDriftTrotterization` path, and the Trim-SQD baseline uses
 the installed Addon SQD `TrimPolicy`; neither result should be described as
 an independently verified reproduction of an external paper protocol.
-Historical pool summaries contain shots, circuit count, and CX totals but not
-per-circuit depth, so depth must be captured in a fresh sampler audit before
-making a complete circuit-cost claim.
+Historical pool summaries contain shots, circuit count, and summed circuit CX
+counts but not per-circuit depth. `benchmark/sampling_sweep.py` now records
+per-circuit CX counts and depths, summed depth, and shot-weighted gate totals
+for fresh sampler audits. A summed CX count counts each circuit once; a
+shot-weighted count multiplies each circuit's gate count by its shots and is
+the closer proxy for executed gate instances.
+
+A fresh audit with development seed 150 and the N2 schedule `(5, 20)` at 100
+QDrift steps recorded 20 circuits, 5,120 shots, 6,655 summed CX counts,
+8,923 summed circuit depth, 1,703,680 shot-weighted CX instances, and
+2,284,288 shot-weighted depth instances. Sampling took 20.784 seconds in the
+current simulator environment. These are simulator measurements, not
+hardware execution times, and the audit does not establish fidelity to an
+external author's implementation.
 
 For a reference-informed upper-bound diagnostic, use
 `benchmark/ci_diagnostic.py`. It ranks alpha and beta strings using the
