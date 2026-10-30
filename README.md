@@ -154,7 +154,10 @@ The corrected N₂ cap-8 confirmation protocol is frozen in
 `benchmark/n2_cap8_evaluation_config.json`. It records the practical solver
 seed policy, stopping rule, warm-up and timing procedure, and reference
 threading. Reference reproducibility is stabilized by this protocol; practical
-solver call-history independence remains an explicit limitation.
+solver call-history independence remains an explicit limitation. An isolated
+five-pool audit is available through `benchmark/isolated_call_history.py`:
+it found identical marginal energies in both execution orders, while one
+Standard SQD pool changed by about 1.45 mHa when method order was reversed.
 
 The small-system N₂ studies use the six-electron, six-orbital active space.
 For larger-space experiments, `n2-large` selects an 8-orbital, 10-electron
