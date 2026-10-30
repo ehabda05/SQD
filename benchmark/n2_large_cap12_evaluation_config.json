@@ -1,0 +1,48 @@
+{
+  "molecule": "n2-large",
+  "active_space": {
+    "orbitals": 8,
+    "electrons": 10,
+    "spin_sector": [5, 5]
+  },
+  "schedule": {
+    "times": [20.0, 100.0],
+    "num_steps": 200,
+    "circuits_per_time": 10,
+    "shots_per_circuit": 256
+  },
+  "seeds": [127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156],
+  "solver": {
+    "samples_per_batch": 25,
+    "num_batches": 3,
+    "max_iterations": 5,
+    "max_dim": 12,
+    "strings_per_spin": 12,
+    "solver_seed_offset": 0
+  },
+  "selection": {
+    "score": "mean marginal CI weight over batches containing the string",
+    "absent_string_policy": "omit",
+    "tie_break": "ascending integer CI-string value",
+    "candidate": "sorted top-twelve alpha and beta Cartesian product",
+    "acceptance": "retain lowest solved energy"
+  },
+  "comparison": {
+    "warm_up": true,
+    "target": "marginal-selection pilot elapsed time per pool",
+    "standard_stopping": "complete Standard SQD restarts until target is met or exceeded",
+    "execution_order": "alternate by schedule plus seed",
+    "progress": "record only after completed solves",
+    "reference": "exact sampled-product principal submatrix per pool",
+    "success": "paired 95 percent CI for Standard minus marginal error is strictly positive and marginal measured solver time is no greater"
+  },
+  "reference_environment": {
+    "OMP_NUM_THREADS": 1,
+    "OPENBLAS_NUM_THREADS": 1
+  },
+  "limitations": [
+    "Total runtime remains sampling-dominated.",
+    "Practical solver call-history independence is not separately established.",
+    "Success is relative to Standard SQD, not ZenKO."
+  ]
+}

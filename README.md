@@ -160,6 +160,13 @@ The small-system N₂ studies use the six-electron, six-orbital active space.
 For larger-space experiments, `n2-large` selects an 8-orbital, 10-electron
 STO-3G N₂ active space without changing either selection method.
 
+The frozen larger-space confirmation protocol is recorded in
+`benchmark/n2_large_cap12_evaluation_config.json`. It treats the 200-step,
+cap-12 configuration as primary, reserves seeds 127--156 for confirmation,
+and declares success only when the paired 95% confidence interval for
+Standard minus marginal error is strictly positive and marginal solver time
+is no greater. The five exploratory seeds 122--126 remain separate.
+
 For a reference-informed upper-bound diagnostic, use
 `benchmark/ci_diagnostic.py`. It ranks alpha and beta strings using the
 unrestricted sampled-pool SCI wavefunction, retains the top eight strings per
