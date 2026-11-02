@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 
 
-THRESHOLDS_MHA = (50.0, 25.0, 10.0, 5.0)
+THRESHOLDS_MHA = (50.0, 25.0, 10.0, 5.0, 1.6)
 
 
 def progress_target_time(row, method, threshold):

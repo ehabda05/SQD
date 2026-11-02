@@ -9,74 +9,47 @@ from pathlib import Path
 from time import perf_counter
 
 import numpy as np
-from qiskit_addon_sqd.fermion import solve_sci
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from benchmark.marginal_selection import select_top_strings  # noqa: E402
 from chemistry.prepare import prepare_registered  # noqa: E402
+from qiskit_addon_sqd.fermion import solve_sci  # noqa: E402
+from solvers.accumulated_marginal import run_accumulated_marginal  # noqa: E402
 from solvers.sqd import run_sqd  # noqa: E402
 
 
 def run_marginal(prepared, counts, args, seed):
-    alpha_scores = {}
-    beta_scores = {}
-    progress = []
-
-    def observe(ci_strings, results):
-        for (strings_a, strings_b), result in zip(ci_strings, results):
-            weights = np.abs(np.asarray(result.sci_state.amplitudes)) ** 2
-            for string, weight in zip(strings_a, np.sum(weights, axis=1)):
-                alpha_scores.setdefault(int(string), []).append(float(weight))
-            for string, weight in zip(strings_b, np.sum(weights, axis=0)):
-                beta_scores.setdefault(int(string), []).append(float(weight))
-
     start = perf_counter()
-    collection = run_sqd(
+    result = run_accumulated_marginal(
         prepared,
         counts,
         samples_per_batch=args.samples_per_batch,
         num_batches=args.num_batches,
         max_iterations=args.max_iterations,
         max_dim=args.max_dim,
+        strings_per_spin=args.strings_per_spin,
         seed=seed,
-        batch_observer=observe,
     )
     elapsed = perf_counter() - start
-    progress.append((elapsed, collection.total_energy, "collection"))
-
-    selected_a = select_top_strings(alpha_scores, args.strings_per_spin)
-    selected_b = select_top_strings(beta_scores, args.strings_per_spin)
-    candidate_start = perf_counter()
-    candidate = solve_sci(
-        (selected_a, selected_b),
-        prepared.h1,
-        prepared.h2,
-        norb=prepared.num_orbitals,
-        nelec=prepared.num_electrons,
-    )
-    candidate_solve_elapsed = perf_counter() - candidate_start
-    candidate_energy = float(candidate.energy) + prepared.constant_energy
-    elapsed = perf_counter() - start
-    progress.append((elapsed, candidate_energy, "candidate"))
-    best = min(collection.total_energy, candidate_energy)
-    if collection.total_energy <= candidate_energy:
-        best_state = collection.sci_result.sci_state
-    else:
-        best_state = candidate.sci_state
+    collection = result.collection
+    best_state = result.retained.sci_state
     return {
-        "energy": best,
+        "energy": result.retained_total_energy,
         "elapsed": elapsed,
-        "progress": progress,
-        "solve_count": collection.classical_solve_count + 1,
+        "progress": [
+            (
+                result.total_classical_seconds - result.candidate_seconds,
+                collection.total_energy,
+                "collection",
+            ),
+            (elapsed, result.retained_total_energy, "candidate"),
+        ],
+        "solve_count": result.classical_solve_count,
         "restart_count": 1,
-        "classical_solve_elapsed": (
-            collection.classical_solve_elapsed + candidate_solve_elapsed
-        ),
-        "determinants": sum(collection.classical_solve_dimensions)
-        + selected_a.size * selected_b.size,
-        "selected_alpha": selected_a.tolist(),
-        "selected_beta": selected_b.tolist(),
+        "classical_solve_elapsed": result.total_classical_seconds,
+        "determinants": sum(result.classical_solve_dimensions),
+        "selected_alpha": result.selected_alpha.tolist(),
+        "selected_beta": result.selected_beta.tolist(),
         "best_alpha": np.asarray(best_state.ci_strs_a).tolist(),
         "best_beta": np.asarray(best_state.ci_strs_b).tolist(),
     }
@@ -225,13 +198,17 @@ def main() -> None:
                     "budget_seconds": budget_target,
                     "marginal_elapsed": marginal["elapsed"],
                     "standard_elapsed": standard["elapsed"],
-                    "marginal_classical_elapsed": marginal["classical_solve_elapsed"],
-                    "standard_classical_elapsed": standard[
+                    "marginal_complete_classical_elapsed": marginal["elapsed"],
+                    "standard_complete_classical_elapsed": standard["elapsed"],
+                    "marginal_diagonalization_elapsed": marginal[
                         "classical_solve_elapsed"
                     ],
-                    "marginal_sampling_elapsed": marginal["elapsed"]
+                    "standard_diagonalization_elapsed": standard[
+                        "classical_solve_elapsed"
+                    ],
+                    "marginal_non_diagonalization_elapsed": marginal["elapsed"]
                     - marginal["classical_solve_elapsed"],
-                    "standard_sampling_elapsed": standard["elapsed"]
+                    "standard_non_diagonalization_elapsed": standard["elapsed"]
                     - standard["classical_solve_elapsed"],
                     "marginal_overshoot": marginal["elapsed"]
                     - budget_target,

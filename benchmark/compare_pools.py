@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from chemistry.prepare import prepare_registered  # noqa: E402
 from qiskit_addon_sqd.fermion import solve_sci  # noqa: E402
-from benchmark.marginal_selection import select_top_strings  # noqa: E402
+from solvers.accumulated_marginal import run_accumulated_marginal  # noqa: E402
 from solvers.sqd import run_sqd  # noqa: E402
 from solvers.trim_sqd import run_trim_sqd  # noqa: E402
 
@@ -24,51 +24,26 @@ def reference_is_outside_budget(method):
 
 
 def run_marginal(prepared, counts, args, seed):
-    alpha_scores = {}
-    beta_scores = {}
-
-    def observe(ci_strings, results):
-        for (strings_a, strings_b), result in zip(ci_strings, results):
-            weights = np.abs(np.asarray(result.sci_state.amplitudes)) ** 2
-            for string, weight in zip(strings_a, np.sum(weights, axis=1)):
-                alpha_scores.setdefault(int(string), []).append(float(weight))
-            for string, weight in zip(strings_b, np.sum(weights, axis=0)):
-                beta_scores.setdefault(int(string), []).append(float(weight))
-
     start = perf_counter()
-    collection = run_sqd(
+    result = run_accumulated_marginal(
         prepared,
         counts,
         samples_per_batch=args.samples_per_batch,
         num_batches=args.num_batches,
         max_iterations=args.max_iterations,
         max_dim=args.max_dim,
+        strings_per_spin=args.max_dim,
         seed=seed,
-        batch_observer=observe,
     )
-    selected_a = select_top_strings(alpha_scores, args.max_dim)
-    selected_b = select_top_strings(beta_scores, args.max_dim)
-    candidate = solve_sci(
-        (selected_a, selected_b),
-        prepared.h1,
-        prepared.h2,
-        norb=prepared.num_orbitals,
-        nelec=prepared.num_electrons,
-    )
-    candidate_energy = float(candidate.energy) + prepared.constant_energy
-    best_energy = min(collection.total_energy, candidate_energy)
     elapsed = perf_counter() - start
     return {
-        "energy": best_energy,
-        "dimension": selected_a.size * selected_b.size,
+        "energy": result.retained_total_energy,
+        "dimension": result.selected_dimension,
         "seconds": elapsed,
-        "solve_count": collection.classical_solve_count + 1,
-        "dimensions": (
-            *collection.classical_solve_dimensions,
-            selected_a.size * selected_b.size,
-        ),
-        "selected_alpha": selected_a.tolist(),
-        "selected_beta": selected_b.tolist(),
+        "solve_count": result.classical_solve_count,
+        "dimensions": result.classical_solve_dimensions,
+        "selected_alpha": result.selected_alpha.tolist(),
+        "selected_beta": result.selected_beta.tolist(),
     }
 
 

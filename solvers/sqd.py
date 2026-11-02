@@ -49,6 +49,18 @@ def run_sqd(
         raise ValueError("counts must not be empty.")
 
     n = prepared.num_orbitals
+    if prepared.h1.shape != (n, n):
+        raise ValueError(f"h1 must have shape {(n, n)}, got {prepared.h1.shape}.")
+    if prepared.h2.shape != (n, n, n, n):
+        raise ValueError(
+            f"h2 must have shape {(n, n, n, n)}, got {prepared.h2.shape}."
+        )
+    if (
+        len(prepared.num_electrons) != 2
+        or any(type(value) is not int or value < 0 for value in prepared.num_electrons)
+        or sum(prepared.num_electrons) > 2 * n
+    ):
+        raise ValueError("num_electrons must contain valid alpha/beta counts.")
 
     for bitstring, count in counts.items():
         if (
@@ -89,10 +101,16 @@ def run_sqd(
     def solve_and_record(ci_strings, one_body_tensor, two_body_tensor, norb, nelec):
         nonlocal classical_solve_elapsed
         ci_strings = canonicalize_ci_strings(ci_strings)
-        classical_solve_dimensions.extend(
+        dimensions = tuple(
             int(strings_a.size * strings_b.size)
             for strings_a, strings_b in ci_strings
         )
+        if any(dimension > max_dim * max_dim for dimension in dimensions):
+            raise RuntimeError(
+                "SQD produced a solve larger than the configured per-spin cap: "
+                f"{max(dimensions)} > {max_dim}^2."
+            )
+        classical_solve_dimensions.extend(dimensions)
         solve_start = perf_counter()
         results = solve_sci_batch(
             ci_strings,

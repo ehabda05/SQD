@@ -8,15 +8,11 @@ import sys
 from pathlib import Path
 from time import perf_counter
 
-import numpy as np
-from qiskit_addon_sqd.fermion import solve_sci
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from chemistry.prepare import prepare_registered  # noqa: E402
 from quantum.SqDRIFT import sample_sqdrift  # noqa: E402
-from benchmark.marginal_selection import select_top_strings  # noqa: E402
-from solvers.sqd import run_sqd  # noqa: E402
+from solvers.accumulated_marginal import run_accumulated_marginal  # noqa: E402
 
 
 REFERENCE_ENERGY = -109.04667177831362
@@ -76,43 +72,21 @@ def main():
     n = prepared.num_orbitals
     alpha_strings = sorted({int(bits[n:], 2) for bits in samples.counts})
     beta_strings = sorted({int(bits[:n], 2) for bits in samples.counts})
-    alpha_scores = {}
-    beta_scores = {}
-
-    def observe(ci_strings, results):
-        for (strings_a, strings_b), result in zip(ci_strings, results):
-            weights = np.abs(np.asarray(result.sci_state.amplitudes)) ** 2
-            for string, weight in zip(strings_a, np.sum(weights, axis=1)):
-                alpha_scores.setdefault(int(string), []).append(float(weight))
-            for string, weight in zip(strings_b, np.sum(weights, axis=0)):
-                beta_scores.setdefault(int(string), []).append(float(weight))
-
     collection_start = perf_counter()
-    collection = run_sqd(
+    result = run_accumulated_marginal(
         prepared,
         samples.counts,
         samples_per_batch=25,
         num_batches=3,
         max_iterations=5,
         max_dim=32,
+        strings_per_spin=32,
         seed=args.seed,
-        batch_observer=observe,
     )
     collection_seconds = perf_counter() - collection_start
-
-    selected_alpha = select_top_strings(alpha_scores, 32)
-    selected_beta = select_top_strings(beta_scores, 32)
-    candidate_start = perf_counter()
-    candidate = solve_sci(
-        (selected_alpha, selected_beta),
-        prepared.h1,
-        prepared.h2,
-        norb=prepared.num_orbitals,
-        nelec=prepared.num_electrons,
-    )
-    candidate_seconds = perf_counter() - candidate_start
-    candidate_energy = float(candidate.energy) + prepared.constant_energy
-    best_energy = min(collection.total_energy, candidate_energy)
+    collection = result.collection
+    candidate_energy = float(result.candidate.energy) + prepared.constant_energy
+    best_energy = result.retained_total_energy
 
     row = {
         "seed": args.seed,
@@ -124,9 +98,9 @@ def main():
         "simulator_options": simulator_options,
         "sampling_seconds": sampling_seconds,
         "collection_seconds": collection_seconds,
-        "candidate_seconds": candidate_seconds,
-        "complete_classical_seconds": collection_seconds + candidate_seconds,
-        "total_seconds": sampling_seconds + collection_seconds + candidate_seconds,
+        "candidate_seconds": result.candidate_seconds,
+        "complete_classical_seconds": result.total_classical_seconds,
+        "total_seconds": sampling_seconds + result.total_classical_seconds,
         "peak_memory_mib": peak_memory_mib(),
         "statevector_complex128_memory_gib": 64.0,
         "unique_configurations": len(samples.counts),
@@ -140,16 +114,15 @@ def main():
         "reference_energy": REFERENCE_ENERGY,
         "reference_method": "PySCF direct_spin1 iterative FCI, conv_tol=1e-10",
         "collection_solve_dimensions": collection.classical_solve_dimensions,
-        "candidate_solve_dimension": int(selected_alpha.size * selected_beta.size),
-        "classical_solve_count": collection.classical_solve_count + 1,
+        "candidate_solve_dimension": result.selected_dimension,
+        "classical_solve_count": result.classical_solve_count,
         "total_determinants": (
-            sum(collection.classical_solve_dimensions)
-            + selected_alpha.size * selected_beta.size
+            sum(result.classical_solve_dimensions)
         ),
-        "scored_alpha_strings": len(alpha_scores),
-        "scored_beta_strings": len(beta_scores),
-        "selected_alpha": selected_alpha.tolist(),
-        "selected_beta": selected_beta.tolist(),
+        "scored_alpha_strings": len(result.alpha_scores),
+        "scored_beta_strings": len(result.beta_scores),
+        "selected_alpha": result.selected_alpha.tolist(),
+        "selected_beta": result.selected_beta.tolist(),
         "pilot_scope": "development seed only; confirmation seeds 157-186 untouched",
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)

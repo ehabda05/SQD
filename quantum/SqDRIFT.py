@@ -1,6 +1,7 @@
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Mapping
+from time import perf_counter
 
 import numpy as np
 from qiskit import QuantumCircuit, transpile
@@ -16,6 +17,7 @@ from qiskit_fermions.transpiler.presets import generate_preset_jw_pass_manager
 
 from chemistry.prepare import PreparedHamiltonian
 from quantum.hamiltonian import build_fermionic_hamiltonian
+from quantum.recovery import recover_sample_counts, validate_ideal_counts
 
 
 @dataclass
@@ -24,6 +26,8 @@ class SqDriftResult:
     counts_per_circuit: list[dict[str, int]]
     circuits: list[QuantumCircuit]
     metadata: list[dict]
+    raw_counts: dict[str, int] | None = None
+    recovery: dict | None = None
 
     @property
     def total_shots(self) -> int:
@@ -62,6 +66,8 @@ def sample_sqdrift(
     seed: int = 42,
     simulator_method: str = "statevector",
     simulator_options: Mapping[str, Any] | None = None,
+    recover_invalid: bool = False,
+    recovery_seed: int | None = None,
 ) -> SqDriftResult:
     for name, value in (
         ("circuits_per_time", circuits_per_time),
@@ -110,6 +116,7 @@ def sample_sqdrift(
         for replica in range(circuits_per_time):
             circuit_seed, transpiler_seed, simulator_seed = (int(value) for value in rng.integers(0, 2**31 - 1, size=3))
 
+            circuit_start = perf_counter()
             fermionic_circuit = FermionicCircuit(num_modes)
             fermionic_circuit.append(
                 InitializeModes(occupation),
@@ -141,27 +148,23 @@ def sample_sqdrift(
                 optimization_level=1,
                 seed_transpiler=transpiler_seed,
             )
+            circuit_seconds = perf_counter() - circuit_start
 
+            execution_start = perf_counter()
             execution = simulator.run(
                 circuit,
                 shots=shots_per_circuit,
                 seed_simulator=simulator_seed,
             ).result()
+            execution_seconds = perf_counter() - execution_start
 
             counts = dict(execution.get_counts(0))
 
             if sum(counts.values()) != shots_per_circuit:
                 raise RuntimeError("Simulator returned an unexpected shot count.")
 
-            # Check spin-sector populations before introducing any noise.
-            num_alpha, num_beta = prepared.num_electrons
-            for bitstring in counts:
-                if (
-                    len(bitstring) != num_modes
-                    or bitstring[n:].count("1") != num_alpha
-                    or bitstring[:n].count("1") != num_beta
-                ):
-                    raise RuntimeError(f"Unexpected electron counts in {bitstring!r}.")
+            if not recover_invalid:
+                validate_ideal_counts(prepared, counts)
 
             circuits.append(circuit)
             counts_per_circuit.append(counts)
@@ -178,11 +181,26 @@ def sample_sqdrift(
                 "num_qubits": circuit.num_qubits,
                 "depth": circuit.depth(),
                 "cx_count": int(circuit.count_ops().get("cx", 0)),
+                "circuit_seconds": circuit_seconds,
+                "sampling_seconds": execution_seconds,
             })
 
+    raw_counts = dict(combined)
+    if recover_invalid:
+        counts, recovery = recover_sample_counts(
+            prepared,
+            raw_counts,
+            seed=seed if recovery_seed is None else recovery_seed,
+        )
+    else:
+        counts = raw_counts
+        recovery = validate_ideal_counts(prepared, counts)
+
     return SqDriftResult(
-        counts=dict(combined),
+        counts=counts,
         counts_per_circuit=counts_per_circuit,
         circuits=circuits,
         metadata=metadata,
+        raw_counts=raw_counts,
+        recovery=recovery,
     )

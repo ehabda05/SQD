@@ -7,30 +7,13 @@ import sys
 from pathlib import Path
 from time import perf_counter
 
-import numpy as np
-from qiskit_addon_sqd.fermion import solve_sci
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from chemistry.prepare import prepare_registered  # noqa: E402
-from solvers.sqd import run_sqd  # noqa: E402
-
-
-def mean_present(scores):
-    return {
-        string: float(np.mean(values))
-        for string, values in scores.items()
-        if values
-    }
-
-
-def select_top_strings(scores, count):
-    means = mean_present(scores)
-    return np.array(
-        sorted(
-            sorted(means, key=lambda string: (-means[string], string))[:count]
-        )
-    )
+from solvers.accumulated_marginal import (  # noqa: E402
+    run_accumulated_marginal,
+    select_top_strings,
+)
 
 
 def main() -> None:
@@ -56,51 +39,21 @@ def main() -> None:
         for seed in args.seeds:
             pool_path = args.pool_dir / f"pool_{schedule}_{seed}.json"
             counts = json.loads(pool_path.read_text())
-            alpha_scores = {}
-            beta_scores = {}
-
-            def observe(ci_strings, results):
-                for (strings_a, strings_b), result in zip(ci_strings, results):
-                    weights = np.abs(np.asarray(result.sci_state.amplitudes)) ** 2
-                    for string, weight in zip(
-                        strings_a, np.sum(weights, axis=1)
-                    ):
-                        alpha_scores.setdefault(int(string), []).append(float(weight))
-                    for string, weight in zip(
-                        strings_b, np.sum(weights, axis=0)
-                    ):
-                        beta_scores.setdefault(int(string), []).append(float(weight))
-
             collection_start = perf_counter()
-            collection = run_sqd(
+            result = run_accumulated_marginal(
                 prepared,
                 counts,
                 samples_per_batch=args.samples_per_batch,
                 num_batches=args.num_batches,
                 max_iterations=args.max_iterations,
                 max_dim=args.max_dim,
+                strings_per_spin=args.strings_per_spin,
                 seed=seed,
-                batch_observer=observe,
             )
             collection_seconds = perf_counter() - collection_start
-
-            candidate_start = perf_counter()
-            selected_a = select_top_strings(
-                alpha_scores, args.strings_per_spin
-            )
-            selected_b = select_top_strings(
-                beta_scores, args.strings_per_spin
-            )
-            candidate = solve_sci(
-                (selected_a, selected_b),
-                prepared.h1,
-                prepared.h2,
-                norb=prepared.num_orbitals,
-                nelec=prepared.num_electrons,
-            )
-            candidate_seconds = perf_counter() - candidate_start
-            candidate_energy = float(candidate.energy) + prepared.constant_energy
-            best_energy = min(collection.total_energy, candidate_energy)
+            collection = result.collection
+            candidate_energy = float(result.candidate.energy) + prepared.constant_energy
+            best_energy = result.retained_total_energy
 
             rows.append(
                 {
@@ -117,24 +70,17 @@ def main() -> None:
                         if prepared.fci_energy is None
                         else 1000 * abs(candidate_energy - prepared.fci_energy)
                     ),
-                    "candidate_seconds": candidate_seconds,
-                    "total_seconds": collection_seconds + candidate_seconds,
-                    "best_energy": best_energy,
-                    "best_error_mha": (
-                        None
-                        if prepared.fci_energy is None
-                        else 1000 * abs(best_energy - prepared.fci_energy)
-                    ),
+                    "candidate_seconds": result.candidate_seconds,
+                    "total_seconds": result.total_classical_seconds,
+                    "best_energy": result.retained_total_energy,
+                    "best_error_mha": result.retained_error_mha,
                     "collection_solve_count": collection.classical_solve_count,
                     "candidate_solve_count": 1,
-                    "total_determinants": (
-                        sum(collection.classical_solve_dimensions)
-                        + selected_a.size * selected_b.size
-                    ),
-                    "selected_alpha": selected_a.tolist(),
-                    "selected_beta": selected_b.tolist(),
-                    "scored_alpha_count": len(alpha_scores),
-                    "scored_beta_count": len(beta_scores),
+                    "total_determinants": sum(result.classical_solve_dimensions),
+                    "selected_alpha": result.selected_alpha.tolist(),
+                    "selected_beta": result.selected_beta.tolist(),
+                    "scored_alpha_count": len(result.alpha_scores),
+                    "scored_beta_count": len(result.beta_scores),
                     "candidate_improved_collection": candidate_energy
                     < collection.total_energy,
                 }

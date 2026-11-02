@@ -1,7 +1,9 @@
 # DRIFT-TRIM
 
 Shared chemistry preparation, SqDRIFT sampling, and SQD/TRIM-SQD solver modules
-for the research workflow. End-to-end benchmark execution remains in progress.
+for reproducible research comparisons. The production runner supports Standard
+SQD, the installed Qiskit Addon `TrimPolicy`, and accumulated-marginal
+selection as separate method labels.
 
 ## Setup and validation
 
@@ -123,6 +125,45 @@ zero. Ties are broken by the integer CI-string value, and the final candidate
 strings are sorted canonically. The rule is experimental; weights from
 different restricted spaces are not assumed to be physically comparable.
 
+The reusable production pipeline is available through
+`solvers/drift_trim.py`. It samples or loads a saved pool, optionally recovers
+noisy configurations, performs restricted collection solves, accumulates
+marginal weights, solves the selected Cartesian product, and retains the
+lowest-energy solution actually computed. The CLI writes JSON and CSV with
+references, selected strings, solve dimensions, timing, dependency versions,
+pool hashes, and thread settings:
+
+```bash
+python benchmark/production_pipeline.py n2-large \
+  --method accumulated-marginal \
+  --out results/production-n2-large.json
+```
+
+An ideal H2 smoke workflow is:
+
+```bash
+python benchmark/production_pipeline.py h2 \
+  --method accumulated-marginal \
+  --times 0.0 1.0 --circuits-per-time 2 --num-steps 5 --shots 64 \
+  --samples-per-batch 4 --num-batches 2 --max-iterations 2 \
+  --max-dim 4 --strings-per-spin 4 \
+  --out results/production-h2.json
+```
+
+For an explicitly noisy development pool, preserve raw counts and enable the
+installed Qiskit SQD occupancy-guided recovery path:
+
+```bash
+python benchmark/production_pipeline.py h2 \
+  --pool results/noisy-h2-counts.json --recover-invalid \
+  --method accumulated-marginal --max-dim 4 --strings-per-spin 4 \
+  --out results/production-h2-recovered.json
+```
+
+Recovery repairs configurations toward the requested spin sectors using
+average occupancies; it does not prove that valid-sector samples are correct.
+Ideal sampling remains strict and exposes unexpected sector violations.
+
 For a same-run, fixed-budget comparison against repeated Standard SQD, use:
 
 ```bash
@@ -133,9 +174,16 @@ python benchmark/fair_selection_comparison.py h2o \
   --seeds 45 46 47 48 49 50 51 52 53 54
 ```
 
-This warms up each pool, uses a marginal-selection pilot to establish the
-per-pool target, alternates the actual method execution order, records progress
-only after completed solves, and reports budget overshoot and all solve costs.
+This warms up each pool, uses the declared `--budget-seconds` allowance for
+Standard SQD restarts, alternates execution order, records progress only after
+completed solves, and reports actual elapsed time, restart counts, budget
+overshoot, and all solve costs. Marginal selection is a fixed collection plus
+candidate operation; unequal elapsed times are not described as equal-cost
+executions. Because this command loads saved pools, its elapsed processing is
+classical: `*_complete_classical_elapsed` is the full saved-pool processing
+time, `*_diagonalization_elapsed` is its solver component, and
+`*_non_diagonalization_elapsed` is batching, scoring, selection, and related
+overhead. These fields are not quantum sampling times.
 
 The frozen held-out protocol is recorded in
 `benchmark/heldout_evaluation_config.json`. Generate new pools only after
@@ -172,9 +220,30 @@ and declares success only when the paired 95% confidence interval for
 Standard minus marginal error is strictly positive and marginal solver time
 is no greater. The five exploratory seeds 122--126 remain separate.
 
+The reproducible larger-N2 cap-32 configuration is
+`benchmark/n2_large_cap32_production_config.json`: 8 active orbitals, 10
+active electrons, per-spin cap 32, and at most 1,024 determinants in every
+solve. Reuse an existing pool for a baseline comparison without resampling:
+
+```bash
+python benchmark/production_pipeline.py n2-large \
+  --pool results/n2-large-confirmation-127-156/pool_0_127.json \
+  --method accumulated-marginal --max-dim 32 --strings-per-spin 32 \
+  --out results/production-n2-large-cap32-seed127.json
+```
+
+For the identical saved-pool baseline comparison:
+
+```bash
+python benchmark/compare_pools.py n2-large \
+  --pool-dir results/n2-large-confirmation-127-156 \
+  --schedule-indices 0 --seeds 127 128 129 \
+  --max-dim 32 --samples-per-batch 25 --num-batches 3
+```
+
 The saved-pool accuracy--cost curve uses those same 30 schedule-0 pools at
 per-spin caps 12, 16, 24, and 32. `benchmark/accuracy_cost_curve.py` reports
-attainment and time-to-target for 50, 25, 10, and 5 mHa absolute error
+attainment and time-to-target for 50, 25, 10, 5, and 1.6 mHa absolute error
 thresholds. The primary target is 10 mHa measured against the explicit FCI
 energy. The exact sampled-product energy remains a separate unrestricted
 pool reference and must not be used for absolute-error attainment. The

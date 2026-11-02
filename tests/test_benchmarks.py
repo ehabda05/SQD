@@ -11,6 +11,8 @@ from benchmark.compare_pools import reference_is_outside_budget
 from benchmark.fair_selection_comparison import run_standard
 from benchmark.marginal_selection import select_top_strings
 from benchmark.reference_pools import fixed_sector_matrix
+from solvers.accumulated_marginal import run_accumulated_marginal
+from chemistry.prepare import prepare_registered
 
 
 class BenchmarkRegressionTests(unittest.TestCase):
@@ -56,10 +58,12 @@ class BenchmarkRegressionTests(unittest.TestCase):
             "standard_error_mha": 0.0,
             "marginal_elapsed": 0.1,
             "standard_elapsed": 0.1,
-            "marginal_classical_elapsed": 0.05,
-            "standard_classical_elapsed": 0.05,
-            "marginal_sampling_elapsed": 0.05,
-            "standard_sampling_elapsed": 0.05,
+            "marginal_complete_classical_elapsed": 0.1,
+            "standard_complete_classical_elapsed": 0.1,
+            "marginal_diagonalization_elapsed": 0.05,
+            "standard_diagonalization_elapsed": 0.05,
+            "marginal_non_diagonalization_elapsed": 0.05,
+            "standard_non_diagonalization_elapsed": 0.05,
             "marginal_solve_count": 1,
             "standard_solve_count": 1,
             "marginal_total_determinants": 1,
@@ -113,3 +117,16 @@ class BenchmarkRegressionTests(unittest.TestCase):
 
         self.assertGreaterEqual(result["restart_count"], 2)
         self.assertGreaterEqual(result["elapsed"], 0.006)
+
+    def test_accumulated_marginal_rejects_candidate_cap_bypass(self):
+        prepared = prepare_registered("h2", compute_fci=False)
+        with self.assertRaisesRegex(ValueError, "cannot exceed max_dim"):
+            run_accumulated_marginal(
+                prepared,
+                {"0101": 4, "0110": 2, "1001": 2, "1010": 2},
+                samples_per_batch=2,
+                num_batches=1,
+                max_iterations=1,
+                max_dim=2,
+                strings_per_spin=3,
+            )

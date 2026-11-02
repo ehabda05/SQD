@@ -1,0 +1,26 @@
+{
+  "molecule": "n2-large",
+  "active_orbitals": 8,
+  "active_electrons": [5, 5],
+  "method": "accumulated-marginal",
+  "sampling": {
+    "times": [20.0, 100.0],
+    "circuits_per_time": 10,
+    "num_steps": 200,
+    "shots_per_circuit": 256
+  },
+  "solver": {
+    "samples_per_batch": 25,
+    "num_batches": 3,
+    "max_iterations": 5,
+    "max_dim": 32,
+    "strings_per_spin": 32,
+    "maximum_determinants_per_solve": 1024
+  },
+  "resource_accounting": {
+    "sampling_seconds": "simulator sampling only",
+    "complete_classical_seconds": "recovery, batching, scoring, selection, and all diagonalizations",
+    "end_to_end_seconds": "sampling plus complete classical processing",
+    "shot_weighted_depth": "circuit-work summary, not hardware runtime"
+  }
+}
