@@ -8,7 +8,7 @@ import numpy as np
 from benchmark.accuracy_cost_curve import progress_target_time
 from benchmark.accuracy_cost_curve import summarize
 from benchmark.compare_pools import reference_is_outside_budget
-from benchmark.fair_selection_comparison import run_standard
+from benchmark.fair_selection_comparison import run_marginal, run_standard
 from benchmark.marginal_selection import select_top_strings
 from benchmark.reference_pools import fixed_sector_matrix
 from solvers.accumulated_marginal import run_accumulated_marginal
@@ -81,6 +81,15 @@ class BenchmarkRegressionTests(unittest.TestCase):
         self.assertEqual(
             summary["marginal"]["mean_end_to_end_elapsed_seconds"], 2.1
         )
+        self.assertEqual(
+            summary["marginal"]["mean_complete_classical_elapsed_seconds"], 0.1
+        )
+        self.assertEqual(
+            summary["marginal"]["mean_diagonalization_elapsed_seconds"], 0.05
+        )
+        self.assertEqual(
+            summary["marginal"]["mean_non_diagonalization_elapsed_seconds"], 0.05
+        )
 
     def test_only_unrestricted_reference_is_outside_budget(self):
         self.assertTrue(reference_is_outside_budget("unrestricted sampled product"))
@@ -130,3 +139,70 @@ class BenchmarkRegressionTests(unittest.TestCase):
                 max_dim=2,
                 strings_per_spin=3,
             )
+
+    def test_accuracy_report_consumes_producer_timing_fields(self):
+        row = {
+            "fci_energy": -10.0,
+            "marginal_progress": [(0.2, -10.0, "collection")],
+            "standard_progress": [(0.3, -10.0, "restart")],
+            "marginal_error_mha": 0.0,
+            "standard_error_mha": 0.0,
+            "marginal_elapsed": 0.3,
+            "standard_elapsed": 0.3,
+            "marginal_complete_classical_elapsed": 0.3,
+            "standard_complete_classical_elapsed": 0.3,
+            "marginal_diagonalization_elapsed": 0.2,
+            "standard_diagonalization_elapsed": 0.2,
+            "marginal_non_diagonalization_elapsed": 0.1,
+            "standard_non_diagonalization_elapsed": 0.1,
+            "marginal_solve_count": 2,
+            "standard_solve_count": 2,
+            "marginal_total_determinants": 2,
+            "standard_total_determinants": 2,
+            "schedule": 0,
+            "seed": 1,
+        }
+        summary = summarize([row], 10.0, {(0, 1): (0.0, None)})
+        self.assertEqual(
+            summary["marginal"]["mean_complete_classical_elapsed_seconds"],
+            0.3,
+        )
+        self.assertEqual(
+            summary["marginal"]["mean_non_diagonalization_elapsed_seconds"],
+            0.1,
+        )
+
+    def test_collection_progress_uses_wall_clock_processing_time(self):
+        result = SimpleNamespace(
+            collection=SimpleNamespace(
+                total_energy=-1.0,
+                classical_solve_elapsed=0.05,
+            ),
+            retained=SimpleNamespace(
+                sci_state=SimpleNamespace(
+                    ci_strs_a=np.array([1]), ci_strs_b=np.array([1])
+                )
+            ),
+            retained_total_energy=-1.1,
+            total_classical_seconds=0.3,
+            collection_seconds=0.2,
+            candidate_seconds=0.1,
+            candidate=SimpleNamespace(classical_solve_elapsed=0.05),
+            classical_solve_count=2,
+            classical_solve_dimensions=(1, 1),
+            selected_alpha=np.array([1]),
+            selected_beta=np.array([1]),
+        )
+        args = SimpleNamespace(
+            samples_per_batch=1,
+            num_batches=1,
+            max_iterations=1,
+            max_dim=1,
+            strings_per_spin=1,
+        )
+        with patch(
+            "benchmark.fair_selection_comparison.run_accumulated_marginal",
+            return_value=result,
+        ):
+            output = run_marginal(object(), {}, args, seed=1)
+        self.assertEqual(output["progress"][0][0], 0.2)

@@ -2,7 +2,6 @@
 
 import argparse
 import csv
-import hashlib
 import json
 import math
 import sys
@@ -14,10 +13,7 @@ from pyscf import fci
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from chemistry.prepare import prepare_registered  # noqa: E402
-
-
-def pool_hash(counts):
-    return hashlib.sha256(json.dumps(counts, sort_keys=True).encode()).hexdigest()
+from solvers.provenance import pool_hash  # noqa: E402
 
 
 def fixed_sector_matrix(prepared, max_matrix_bytes=2 * 1024**3):

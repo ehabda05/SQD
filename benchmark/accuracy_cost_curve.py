@@ -68,15 +68,21 @@ def summarize(rows, threshold, pool_generation):
                     ]
                 )
             ),
-            "mean_classical_elapsed_seconds": (
-                float(np.mean([row[f"{method}_classical_elapsed"] for row in rows]))
-                if f"{method}_classical_elapsed" in rows[0]
-                else None
+            "mean_complete_classical_elapsed_seconds": float(
+                np.mean(
+                    [row[f"{method}_complete_classical_elapsed"] for row in rows]
+                )
             ),
-            "mean_sampling_elapsed_seconds": (
-                float(np.mean([row[f"{method}_sampling_elapsed"] for row in rows]))
-                if f"{method}_sampling_elapsed" in rows[0]
-                else None
+            "mean_diagonalization_elapsed_seconds": float(
+                np.mean([row[f"{method}_diagonalization_elapsed"] for row in rows])
+            ),
+            "mean_non_diagonalization_elapsed_seconds": float(
+                np.mean(
+                    [
+                        row[f"{method}_non_diagonalization_elapsed"]
+                        for row in rows
+                    ]
+                )
             ),
             "mean_solve_count": float(
                 np.mean([row[f"{method}_solve_count"] for row in rows])

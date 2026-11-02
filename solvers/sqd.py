@@ -44,6 +44,7 @@ def run_sqd(
     seed: int = 42,
     policy=None,
     batch_observer: Callable | None = None,
+    retain_best_intermediate: bool = False,
 ) -> SQDResult:
     if not counts:
         raise ValueError("counts must not be empty.")
@@ -97,9 +98,10 @@ def run_sqd(
     bit_array = BitArray.from_counts(counts)
     classical_solve_dimensions: list[int] = []
     classical_solve_elapsed = 0.0
+    best_intermediate = None
 
     def solve_and_record(ci_strings, one_body_tensor, two_body_tensor, norb, nelec):
-        nonlocal classical_solve_elapsed
+        nonlocal best_intermediate, classical_solve_elapsed
         ci_strings = canonicalize_ci_strings(ci_strings)
         dimensions = tuple(
             int(strings_a.size * strings_b.size)
@@ -120,6 +122,13 @@ def run_sqd(
             nelec,
         )
         classical_solve_elapsed += perf_counter() - solve_start
+        if retain_best_intermediate:
+            candidate = min(results, key=lambda item: float(item.energy))
+            if (
+                best_intermediate is None
+                or float(candidate.energy) < float(best_intermediate.energy)
+            ):
+                best_intermediate = candidate
         if batch_observer is not None:
             batch_observer(ci_strings, results)
         return results
@@ -142,6 +151,12 @@ def run_sqd(
         policy=policy,
         sci_solver=solve_and_record,
     )
+    if (
+        retain_best_intermediate
+        and best_intermediate is not None
+        and float(best_intermediate.energy) < float(result.energy)
+    ):
+        result = best_intermediate
 
     electronic_energy = float(result.energy)
     total_energy = electronic_energy + prepared.constant_energy

@@ -18,6 +18,7 @@ def run_trim_sqd(
     max_strings_per_trim: int = 128,
     max_carryover: int = 128,
     seed: int = 42,
+    retain_best_intermediate: bool = False,
 ) -> SQDResult:
     policy = TrimPolicy(
         trim_ratio=trim_ratio,
@@ -36,4 +37,5 @@ def run_trim_sqd(
         max_dim=max_dim,
         seed=seed,
         policy=policy,
+        retain_best_intermediate=retain_best_intermediate,
     )

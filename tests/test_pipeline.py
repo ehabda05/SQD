@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 from pyscf import fci
@@ -125,6 +126,52 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(bitstring[:2].count("1"), 1)
             self.assertEqual(bitstring[2:].count("1"), 1)
 
+    def test_recovery_passes_orbital_order_and_rejects_invalid_output(self):
+        prepared = type(
+            "Prepared",
+            (),
+            {"num_orbitals": 3, "num_electrons": (1, 1)},
+        )()
+        observed = {}
+
+        def fake_recovery(
+            bitstrings,
+            probabilities,
+            occupancies,
+            num_alpha,
+            num_beta,
+            rand_seed,
+        ):
+            observed["occupancies"] = occupancies
+            return (
+                np.array([[True, False, False, True, False, False]]),
+                np.array([1.0]),
+            )
+
+        with patch("quantum.recovery.recover_configurations", fake_recovery):
+            recovered, _ = recover_sample_counts(
+                prepared,
+                {"001001": 90, "000000": 10},
+                seed=7,
+            )
+        np.testing.assert_allclose(observed["occupancies"][0], [0.9, 0.0, 0.0])
+        np.testing.assert_allclose(observed["occupancies"][1], [0.9, 0.0, 0.0])
+        self.assertEqual(recovered, {"100100": 100})
+
+        def invalid_recovery(*_args, **_kwargs):
+            return (
+                np.array([[False, False, False, False, False, False]]),
+                np.array([1.0]),
+            )
+
+        with patch("quantum.recovery.recover_configurations", invalid_recovery):
+            with self.assertRaisesRegex(RuntimeError, "outside"):
+                recover_sample_counts(
+                    prepared,
+                    {"001001": 90, "000000": 10},
+                    seed=7,
+                )
+
     def test_production_runner_loads_saved_counts(self):
         prepared = prepare_registered("h2", compute_fci=False)
         result = run_drift_trim(
@@ -148,6 +195,65 @@ class PipelineTests(unittest.TestCase):
             max_dim=2,
             strings_per_spin=2,
         ).pool_hash)
+
+    def test_production_fingerprint_includes_effective_solver_configuration(self):
+        prepared = prepare_registered("h2", compute_fci=False)
+        counts = {"0101": 4, "0110": 2, "1001": 2, "1010": 2}
+        first = run_drift_trim(
+            prepared,
+            method="accumulated-marginal",
+            counts=counts,
+            samples_per_batch=2,
+            num_batches=1,
+            max_iterations=1,
+            max_dim=2,
+            strings_per_spin=2,
+        )
+        second = run_drift_trim(
+            prepared,
+            method="accumulated-marginal",
+            counts=counts,
+            samples_per_batch=2,
+            num_batches=1,
+            max_iterations=1,
+            max_dim=1,
+            strings_per_spin=1,
+        )
+        self.assertNotEqual(
+            first.configuration_fingerprint,
+            second.configuration_fingerprint,
+        )
+
+    def test_saved_pool_recovery_is_classified_as_classical_work(self):
+        prepared = prepare_registered("h2", compute_fci=False)
+        counts = {"0101": 4, "0110": 2, "1001": 2, "1010": 2}
+        diagnostics = {
+            "enabled": True,
+            "invalid_configurations": 0,
+            "invalid_shots": 0,
+            "recovered_configurations": 4,
+            "recovered_shots": 0,
+            "seconds": 0.25,
+            "raw_shots": 10,
+        }
+        with patch(
+            "quantum.recovery.recover_sample_counts",
+            return_value=(counts, diagnostics),
+        ):
+            result = run_drift_trim(
+                prepared,
+                method="accumulated-marginal",
+                counts=counts,
+                recover_invalid=True,
+                samples_per_batch=2,
+                num_batches=1,
+                max_iterations=1,
+                max_dim=2,
+                strings_per_spin=2,
+            )
+        self.assertEqual(result.sampling_seconds, 0.0)
+        self.assertGreaterEqual(result.classical_seconds, 0.25)
+        self.assertEqual(result.total_seconds, result.classical_seconds)
 
 
 if __name__ == "__main__":

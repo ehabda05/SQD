@@ -2,7 +2,6 @@
 
 import argparse
 import csv
-import hashlib
 import json
 import sys
 from pathlib import Path
@@ -16,6 +15,7 @@ from chemistry.prepare import prepare_registered  # noqa: E402
 from qiskit_addon_sqd.fermion import solve_sci  # noqa: E402
 from solvers.accumulated_marginal import run_accumulated_marginal  # noqa: E402
 from solvers.sqd import run_sqd  # noqa: E402
+from solvers.provenance import pool_hash  # noqa: E402
 
 
 def run_marginal(prepared, counts, args, seed):
@@ -38,7 +38,7 @@ def run_marginal(prepared, counts, args, seed):
         "elapsed": elapsed,
         "progress": [
             (
-                result.total_classical_seconds - result.candidate_seconds,
+                result.collection_seconds,
                 collection.total_energy,
                 "collection",
             ),
@@ -46,7 +46,11 @@ def run_marginal(prepared, counts, args, seed):
         ],
         "solve_count": result.classical_solve_count,
         "restart_count": 1,
-        "classical_solve_elapsed": result.total_classical_seconds,
+        "complete_classical_elapsed": result.total_classical_seconds,
+        "diagonalization_elapsed": (
+            collection.classical_solve_elapsed
+            + result.candidate_seconds
+        ),
         "determinants": sum(result.classical_solve_dimensions),
         "selected_alpha": result.selected_alpha.tolist(),
         "selected_beta": result.selected_beta.tolist(),
@@ -78,7 +82,8 @@ def run_standard(prepared, counts, args, seed, budget):
         "elapsed": perf_counter() - start,
         "progress": progress,
         "solve_count": sum(result.classical_solve_count for result in runs),
-        "classical_solve_elapsed": sum(
+        "complete_classical_elapsed": perf_counter() - start,
+        "diagonalization_elapsed": sum(
             result.classical_solve_elapsed for result in runs
         ),
         "determinants": sum(
@@ -135,9 +140,7 @@ def main() -> None:
             counts = json.loads(
                 (args.pool_dir / f"pool_{schedule}_{seed}.json").read_text()
             )
-            pool_hash = hashlib.sha256(
-                json.dumps(counts, sort_keys=True).encode()
-            ).hexdigest()
+            counts_hash = pool_hash(counts)
             n = prepared.num_orbitals
             pool_alpha = {int(bitstring[n:], 2) for bitstring in counts}
             pool_beta = {int(bitstring[:n], 2) for bitstring in counts}
@@ -154,7 +157,7 @@ def main() -> None:
                 )
                 reference_energy = float(reference.energy) + prepared.constant_energy
             else:
-                if reference_row["pool_hash"] != pool_hash:
+                if reference_row["pool_hash"] != counts_hash:
                     raise ValueError(f"Pool hash mismatch for schedule={schedule}, seed={seed}")
                 reference_energy = float(reference_row["energy"])
             warm_up(prepared, counts, args, seed)
@@ -184,7 +187,7 @@ def main() -> None:
                     "schedule": schedule,
                     "seed": seed,
                     "solver_seed_offset": args.solver_seed_offset,
-                    "pool_hash": pool_hash,
+                    "pool_hash": counts_hash,
                     "alpha_string_count": len(pool_alpha),
                     "beta_string_count": len(pool_beta),
                     "reference_error_mha": (
@@ -198,18 +201,26 @@ def main() -> None:
                     "budget_seconds": budget_target,
                     "marginal_elapsed": marginal["elapsed"],
                     "standard_elapsed": standard["elapsed"],
-                    "marginal_complete_classical_elapsed": marginal["elapsed"],
-                    "standard_complete_classical_elapsed": standard["elapsed"],
+                    "marginal_complete_classical_elapsed": marginal[
+                        "complete_classical_elapsed"
+                    ],
+                    "standard_complete_classical_elapsed": standard[
+                        "complete_classical_elapsed"
+                    ],
                     "marginal_diagonalization_elapsed": marginal[
-                        "classical_solve_elapsed"
+                        "diagonalization_elapsed"
                     ],
                     "standard_diagonalization_elapsed": standard[
-                        "classical_solve_elapsed"
+                        "diagonalization_elapsed"
                     ],
-                    "marginal_non_diagonalization_elapsed": marginal["elapsed"]
-                    - marginal["classical_solve_elapsed"],
-                    "standard_non_diagonalization_elapsed": standard["elapsed"]
-                    - standard["classical_solve_elapsed"],
+                    "marginal_non_diagonalization_elapsed": marginal[
+                        "complete_classical_elapsed"
+                    ]
+                    - marginal["diagonalization_elapsed"],
+                    "standard_non_diagonalization_elapsed": standard[
+                        "complete_classical_elapsed"
+                    ]
+                    - standard["diagonalization_elapsed"],
                     "marginal_overshoot": marginal["elapsed"]
                     - budget_target,
                     "standard_overshoot": standard["elapsed"]

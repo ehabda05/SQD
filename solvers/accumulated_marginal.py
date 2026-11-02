@@ -27,6 +27,7 @@ class AccumulatedMarginalResult:
     alpha_scores: dict[int, tuple[float, ...]]
     beta_scores: dict[int, tuple[float, ...]]
     candidate_seconds: float
+    collection_seconds: float
     total_classical_seconds: float
     classical_solve_count: int
     classical_solve_dimensions: tuple[int, ...]
@@ -49,7 +50,10 @@ class AccumulatedMarginalResult:
 
     @property
     def classical_solve_elapsed(self) -> float:
-        return self.total_classical_seconds
+        return (
+            self.collection.classical_solve_elapsed
+            + self.candidate.classical_solve_elapsed
+        )
 
 
 def mean_present(scores: dict[int, list[float]]) -> dict[int, float]:
@@ -106,6 +110,8 @@ def run_accumulated_marginal(
             for string, weight in zip(strings_b, np.sum(weights, axis=0)):
                 beta_scores.setdefault(int(string), []).append(float(weight))
 
+    total_start = perf_counter()
+    collection_start = perf_counter()
     collection = run_sqd(
         prepared,
         counts,
@@ -116,6 +122,7 @@ def run_accumulated_marginal(
         seed=seed,
         batch_observer=observe,
     )
+    collection_seconds = perf_counter() - collection_start
     selected_alpha = select_top_strings(alpha_scores, strings_per_spin)
     selected_beta = select_top_strings(beta_scores, strings_per_spin)
     selected_dimension = int(selected_alpha.size * selected_beta.size)
@@ -160,7 +167,8 @@ def run_accumulated_marginal(
         alpha_scores={key: tuple(value) for key, value in alpha_scores.items()},
         beta_scores={key: tuple(value) for key, value in beta_scores.items()},
         candidate_seconds=candidate_seconds,
-        total_classical_seconds=collection.classical_solve_elapsed + candidate_seconds,
+        collection_seconds=collection_seconds,
+        total_classical_seconds=perf_counter() - total_start,
         classical_solve_count=collection.classical_solve_count + 1,
         classical_solve_dimensions=(
             *collection.classical_solve_dimensions,

@@ -185,6 +185,24 @@ time, `*_diagonalization_elapsed` is its solver component, and
 `*_non_diagonalization_elapsed` is batching, scoring, selection, and related
 overhead. These fields are not quantum sampling times.
 
+For saved-pool policy comparisons, `compare_pools.py` constructs the
+unrestricted sampled-product reference from the explicit fixed-spin
+Hamiltonian matrix rather than an iterative SCI solve. It alternates policy
+execution order by seed and exports each method's winning strings and
+amplitudes, a prepared-integral manifest, and pool hashes. Verify those
+exported states independently with:
+
+```bash
+python benchmark/replay_verify.py results/pool-comparison
+```
+
+The optional `--retain-best-intermediate` flag reports the best SCI state
+observed by `TrimPolicy` without changing its subsequent search. This is a
+control for separating aggregation effects from retention of better
+intermediate states. A replay failure is evidence that the reported solver
+energy and exported state are not numerically interchangeable at the chosen
+convergence settings; it must not be silently treated as a verified result.
+
 The frozen held-out protocol is recorded in
 `benchmark/heldout_evaluation_config.json`. Generate new pools only after
 freezing this configuration, then evaluate the primary 200-step schedule

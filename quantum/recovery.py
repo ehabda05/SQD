@@ -84,10 +84,10 @@ def recover_sample_counts(
     for string, count in counts.items():
         weight = count / shots
         average_beta += weight * np.array(
-            [bit == "1" for bit in string[:n]], dtype=float
+            [bit == "1" for bit in string[:n][::-1]], dtype=float
         )
         average_alpha += weight * np.array(
-            [bit == "1" for bit in string[n:]], dtype=float
+            [bit == "1" for bit in string[n:][::-1]], dtype=float
         )
 
     start = perf_counter()
@@ -104,6 +104,14 @@ def recover_sample_counts(
         recovered_probabilities,
         shots,
     )
+    recovered_shots_total, recovered_invalid = _validate_counts(prepared, recovered)
+    if recovered_shots_total != shots:
+        raise RuntimeError("Configuration recovery changed the total shot count.")
+    if recovered_invalid:
+        raise RuntimeError(
+            "Configuration recovery returned configurations outside the requested "
+            "spin sector."
+        )
     recovered_shots = sum(
         abs(recovered.get(string, 0) - counts.get(string, 0))
         for string in set(recovered) | set(counts)

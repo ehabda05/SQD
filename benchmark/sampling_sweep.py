@@ -2,7 +2,6 @@
 
 import argparse
 import csv
-import hashlib
 import json
 import sys
 from pathlib import Path
@@ -13,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from chemistry.prepare import prepare_registered  # noqa: E402
 from quantum.SqDRIFT import sample_sqdrift  # noqa: E402
 from solvers.sqd import run_sqd  # noqa: E402
+from solvers.provenance import pool_hash  # noqa: E402
 from benchmark.experiment import sampled_product_solve  # noqa: E402
 
 
@@ -98,9 +98,7 @@ def main() -> None:
                 "num_steps": steps,
                 "seed": seed,
                 "pool_file": str(pool_path),
-                "pool_hash": hashlib.sha256(
-                    json.dumps(pool.counts, sort_keys=True).encode()
-                ).hexdigest(),
+                "pool_hash": pool_hash(pool.counts),
                 "shots": pool.total_shots,
                 "circuits": len(pool.circuits),
                 "cx": sum(item["cx_count"] for item in pool.metadata),

@@ -31,6 +31,8 @@ def main() -> None:
     parser.add_argument("--molecule", default="h2o")
     parser.add_argument("--pool", type=Path, required=True)
     parser.add_argument("--strings-per-spin", type=int, default=8)
+    parser.add_argument("--residual-tol", type=float, default=1e-7)
+    parser.add_argument("--energy-tol", type=float, default=1e-8)
     parser.add_argument("--cache-dir", type=Path, default=Path("results/fci-cache"))
     args = parser.parse_args()
 
@@ -163,6 +165,18 @@ def main() -> None:
             <= selected_solver_energy
             <= projected_energy + prepared.constant_energy + 1e-10
         ),
+        "audit_passed": (
+            residual <= args.residual_tol
+            and returned_residual <= args.residual_tol
+            and abs(
+                selected_solver_energy
+                - (selected_ground + prepared.constant_energy)
+            )
+            <= args.energy_tol
+            and unrestricted_energy
+            <= selected_solver_energy + args.energy_tol
+            <= projected_energy + prepared.constant_energy + args.energy_tol
+        ),
         "selected_alpha": selected_strings_a.tolist(),
         "selected_beta": selected_strings_b.tolist(),
     }
@@ -170,6 +184,10 @@ def main() -> None:
     output_path.write_text(json.dumps(output, indent=2, sort_keys=True))
     print(json.dumps(output, indent=2, sort_keys=True))
     print(f"wrote {output_path}")
+    if not output["audit_passed"]:
+        raise RuntimeError(
+            "Hamiltonian audit failed residual, energy, or ordering checks."
+        )
 
 
 if __name__ == "__main__":
