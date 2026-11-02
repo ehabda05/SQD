@@ -69,6 +69,7 @@ def run_marginal(prepared, counts, args, seed):
         "elapsed": elapsed,
         "progress": progress,
         "solve_count": collection.classical_solve_count + 1,
+        "restart_count": 1,
         "classical_solve_elapsed": (
             collection.classical_solve_elapsed + candidate_solve_elapsed
         ),
@@ -185,8 +186,7 @@ def main() -> None:
                 reference_energy = float(reference_row["energy"])
             warm_up(prepared, counts, args, seed)
             method_seed = seed + args.solver_seed_offset
-            pilot = run_marginal(prepared, counts, args, method_seed)
-            budget_target = pilot["elapsed"]
+            budget_target = args.budget_seconds
             marginal_first = (schedule + seed) % 2 == 0
             if marginal_first:
                 marginal = run_marginal(prepared, counts, args, method_seed)
@@ -220,6 +220,7 @@ def main() -> None:
                         else 1000 * abs(reference_energy - prepared.fci_energy)
                     ),
                     "reference_energy": reference_energy,
+                    "fci_energy": prepared.fci_energy,
                     "marginal_first": marginal_first,
                     "budget_seconds": budget_target,
                     "marginal_elapsed": marginal["elapsed"],
@@ -253,6 +254,7 @@ def main() -> None:
                         set(standard["best_beta"]) - pool_beta
                     ),
                     "marginal_solve_count": marginal["solve_count"],
+                    "marginal_restart_count": marginal["restart_count"],
                     "standard_solve_count": standard["solve_count"],
                     "marginal_total_determinants": marginal["determinants"],
                     "standard_total_determinants": standard["determinants"],

@@ -11,7 +11,12 @@ THRESHOLDS_MHA = (50.0, 25.0, 10.0, 5.0)
 
 
 def progress_target_time(row, method, threshold):
-    reference = float(row["reference_energy"])
+    if row.get("fci_energy") is None:
+        raise ValueError(
+            "Accuracy thresholds require an explicit fci_energy field; "
+            "sampled-product references are not valid absolute references."
+        )
+    reference = float(row["fci_energy"])
     progress = row[f"{method}_progress"]
     for elapsed, energy, _label in progress:
         if 1000 * abs(float(energy) - reference) <= threshold:
@@ -19,7 +24,7 @@ def progress_target_time(row, method, threshold):
     return None
 
 
-def summarize(rows, threshold, pool_generation_seconds):
+def summarize(rows, threshold, pool_generation):
     summary = {}
     for method in ("marginal", "standard"):
         target_times = [
@@ -28,7 +33,7 @@ def summarize(rows, threshold, pool_generation_seconds):
             if (time := progress_target_time(row, method, threshold)) is not None
         ]
         end_to_end_target_times = [
-            time + pool_generation_seconds[row["seed"]]
+            time + pool_generation[(row["schedule"], row["seed"])][0]
             for row in rows
             if (time := progress_target_time(row, method, threshold)) is not None
         ]
@@ -57,7 +62,8 @@ def summarize(rows, threshold, pool_generation_seconds):
             "mean_end_to_end_elapsed_seconds": float(
                 np.mean(
                     [
-                        row[f"{method}_elapsed"] + pool_generation_seconds[row["seed"]]
+                        row[f"{method}_elapsed"]
+                        + pool_generation[(row["schedule"], row["seed"])][0]
                         for row in rows
                     ]
                 )
@@ -107,27 +113,54 @@ def main():
         "caps": {},
     }
     pool_rows = json.loads(args.pool_results.read_text())
-    pool_generation_seconds = {
-        int(row["seed"]): float(row["sampling_seconds"])
-        for row in pool_rows
-        if int(row["schedule"]) == 0
-    }
+    pool_generation = {}
+    for row in pool_rows:
+        key = (int(row["schedule"]), int(row["seed"]))
+        value = (float(row["sampling_seconds"]), row.get("pool_hash"))
+        previous = pool_generation.setdefault(key, value)
+        if previous != value:
+            raise ValueError(f"Conflicting pool metadata for schedule/seed {key}")
     for cap, path_text in args.input:
         rows = json.loads(Path(path_text).read_text())
         if not rows:
             raise ValueError(f"No rows in {path_text}")
-        missing = {int(row["seed"]) for row in rows} - set(pool_generation_seconds)
+        missing = {
+            (int(row["schedule"]), int(row["seed"]))
+            for row in rows
+        } - set(pool_generation)
         if missing:
-            raise ValueError(f"Missing pool-generation timing for seeds: {sorted(missing)}")
+            raise ValueError(
+                "Missing pool-generation timing for schedule/seed pairs: "
+                f"{sorted(missing)}"
+            )
+        for row in rows:
+            pool_key = (int(row["schedule"]), int(row["seed"]))
+            expected_hash = pool_generation[pool_key][1]
+            actual_hash = row.get("pool_hash")
+            if (
+                expected_hash is not None
+                and actual_hash is not None
+                and expected_hash != actual_hash
+            ):
+                raise ValueError(
+                    f"Pool hash mismatch for schedule/seed {pool_key}"
+                )
         report["caps"][str(int(cap))] = {
             "rows": len(rows),
             "seeds": sorted({int(row["seed"]) for row in rows}),
             "schedule_indices": sorted({int(row["schedule"]) for row in rows}),
             "mean_pool_generation_seconds": float(
-                np.mean([pool_generation_seconds[row["seed"]] for row in rows])
+                np.mean(
+                    [
+                        pool_generation[
+                            (int(row["schedule"]), int(row["seed"]))
+                        ][0]
+                        for row in rows
+                    ]
+                )
             ),
             "thresholds": {
-                str(threshold): summarize(rows, threshold, pool_generation_seconds)
+                str(threshold): summarize(rows, threshold, pool_generation)
                 for threshold in THRESHOLDS_MHA
             },
         }

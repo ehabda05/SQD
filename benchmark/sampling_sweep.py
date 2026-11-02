@@ -2,6 +2,7 @@
 
 import argparse
 import csv
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -97,6 +98,9 @@ def main() -> None:
                 "num_steps": steps,
                 "seed": seed,
                 "pool_file": str(pool_path),
+                "pool_hash": hashlib.sha256(
+                    json.dumps(pool.counts, sort_keys=True).encode()
+                ).hexdigest(),
                 "shots": pool.total_shots,
                 "circuits": len(pool.circuits),
                 "cx": sum(item["cx_count"] for item in pool.metadata),

@@ -6,13 +6,13 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from pyscf import fci
 from qiskit_addon_sqd.fermion import solve_sci
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from chemistry.prepare import prepare_registered  # noqa: E402
 from benchmark.ci_diagnostic import top_indices  # noqa: E402
+from benchmark.reference_pools import fixed_sector_matrix  # noqa: E402
 
 
 def solve(prepared, strings_a, strings_b):
@@ -49,31 +49,23 @@ def main() -> None:
         raise RuntimeError("SCI vector shape does not match CI string dimensions.")
     vector = vector / np.linalg.norm(vector)
 
-    na, nb = alpha.size, beta.size
-    addr, matrix = fci.direct_spin1.pspace(
-        np.asarray(prepared.h1),
-        np.asarray(prepared.h2),
-        n,
-        prepared.num_electrons,
-        np=na * nb,
-    )
-    if not np.array_equal(addr, np.arange(na * nb)):
-        raise RuntimeError("Full pspace matrix did not return all addresses in order.")
-
-    strings_a = fci.cistring.addrs2str(n, prepared.num_electrons[0], np.arange(na))
-    strings_b = fci.cistring.addrs2str(n, prepared.num_electrons[1], np.arange(nb))
-    address_a = {int(value): index for index, value in enumerate(strings_a)}
-    address_b = {int(value): index for index, value in enumerate(strings_b)}
+    matrix, address_a, address_b = fixed_sector_matrix(prepared)
     row_indices = [address_a[int(value)] for value in alpha]
     col_indices = [address_b[int(value)] for value in beta]
-    full_indices = np.array(
-        [row * nb + column for row in row_indices for column in col_indices]
+    sampled_indices = np.array(
+        [
+            row * len(address_b) + column
+            for row in row_indices
+            for column in col_indices
+        ]
     )
-
+    sampled_matrix = matrix[np.ix_(sampled_indices, sampled_indices)]
     full_vector = vector
-    direct_energy = float(np.vdot(full_vector, matrix @ full_vector).real)
-    residual = np.linalg.norm(matrix @ full_vector - direct_energy * full_vector)
-    eigenvalues = np.linalg.eigvalsh(matrix)
+    direct_energy = float(np.vdot(full_vector, sampled_matrix @ full_vector).real)
+    residual = np.linalg.norm(
+        sampled_matrix @ full_vector - direct_energy * full_vector
+    )
+    eigenvalues = np.linalg.eigvalsh(sampled_matrix)
     matrix_ground = float(eigenvalues[0])
     matrix_maximum = float(eigenvalues[-1])
 
@@ -82,7 +74,7 @@ def main() -> None:
     beta_indices = top_indices(np.sum(weights, axis=0), args.strings_per_spin)
     selected_indices = np.array(
         [
-            row * nb + column
+            row * len(col_indices) + column
             for row in alpha_indices
             for column in beta_indices
         ]
@@ -90,7 +82,7 @@ def main() -> None:
     selected_vector = full_vector[selected_indices]
     retained_weight = float(np.vdot(selected_vector, selected_vector).real)
     projected_vector = selected_vector / np.sqrt(retained_weight)
-    selected_matrix = matrix[np.ix_(selected_indices, selected_indices)]
+    selected_matrix = sampled_matrix[np.ix_(selected_indices, selected_indices)]
     projected_energy = float(
         np.vdot(projected_vector, selected_matrix @ projected_vector).real
     )
@@ -106,12 +98,18 @@ def main() -> None:
     returned_vector = returned_vector / np.linalg.norm(returned_vector)
     returned_alpha = np.asarray(returned_state.ci_strs_a)
     returned_beta = np.asarray(returned_state.ci_strs_b)
-    returned_rows = [address_a[int(value)] for value in returned_alpha]
-    returned_cols = [address_b[int(value)] for value in returned_beta]
+    sampled_row = {int(value): index for index, value in enumerate(alpha)}
+    sampled_col = {int(value): index for index, value in enumerate(beta)}
+    returned_rows = [sampled_row[int(value)] for value in returned_alpha]
+    returned_cols = [sampled_col[int(value)] for value in returned_beta]
     returned_indices = np.array(
-        [row * nb + column for row in returned_rows for column in returned_cols]
+        [
+            row * len(col_indices) + column
+            for row in returned_rows
+            for column in returned_cols
+        ]
     )
-    returned_matrix = matrix[np.ix_(returned_indices, returned_indices)]
+    returned_matrix = sampled_matrix[np.ix_(returned_indices, returned_indices)]
     returned_vector_energy = float(
         np.vdot(returned_vector, returned_matrix @ returned_vector).real
     )
@@ -122,7 +120,7 @@ def main() -> None:
 
     output = {
         "pool": str(args.pool),
-        "dimension": int(matrix.shape[0]),
+        "dimension": int(sampled_matrix.shape[0]),
         "constant_energy": prepared.constant_energy,
         "unrestricted_solver_total_energy": unrestricted_energy,
         "unrestricted_matrix_ground_total_energy": (

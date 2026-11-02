@@ -133,8 +133,8 @@ def main() -> None:
                     ),
                     "selected_alpha": selected_a.tolist(),
                     "selected_beta": selected_b.tolist(),
-                    "scored_alpha_count": len(alpha_means),
-                    "scored_beta_count": len(beta_means),
+                    "scored_alpha_count": len(alpha_scores),
+                    "scored_beta_count": len(beta_scores),
                     "candidate_improved_collection": candidate_energy
                     < collection.total_energy,
                 }

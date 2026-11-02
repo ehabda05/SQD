@@ -4,6 +4,7 @@ import argparse
 import csv
 import hashlib
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -19,9 +20,17 @@ def pool_hash(counts):
     return hashlib.sha256(json.dumps(counts, sort_keys=True).encode()).hexdigest()
 
 
-def fixed_sector_matrix(prepared):
+def fixed_sector_matrix(prepared, max_matrix_bytes=2 * 1024**3):
     n = prepared.num_orbitals
     nelec_a, nelec_b = prepared.num_electrons
+    estimated_dimension = math.comb(n, nelec_a) * math.comb(n, nelec_b)
+    estimated_bytes = estimated_dimension**2 * np.dtype(float).itemsize
+    if estimated_bytes > max_matrix_bytes:
+        raise ValueError(
+            f"Full fixed-sector matrix requires {estimated_bytes / 2**30:.2f} GiB "
+            f"for dimension {estimated_dimension}; use "
+            "benchmark/iterative_reference.py for oversized problems."
+        )
     strings_a = fci.cistring.make_strings(range(n), nelec_a)
     strings_b = fci.cistring.make_strings(range(n), nelec_b)
     h2e = fci.direct_spin1.absorb_h1e(

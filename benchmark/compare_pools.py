@@ -19,6 +19,10 @@ from solvers.sqd import run_sqd  # noqa: E402
 from solvers.trim_sqd import run_trim_sqd  # noqa: E402
 
 
+def reference_is_outside_budget(method):
+    return method == "unrestricted sampled product"
+
+
 def run_marginal(prepared, counts, args, seed):
     alpha_scores = {}
     beta_scores = {}
@@ -211,7 +215,7 @@ def main() -> None:
                         "classical_solve_dimensions": dimensions,
                         "total_determinants_diagonalized": sum(dimensions),
                         "solve_seconds": seconds,
-                        "reference_outside_budget": result is None,
+                        "reference_outside_budget": reference_is_outside_budget(method),
                     }
                 )
 

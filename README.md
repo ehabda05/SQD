@@ -175,8 +175,10 @@ is no greater. The five exploratory seeds 122--126 remain separate.
 The saved-pool accuracy--cost curve uses those same 30 schedule-0 pools at
 per-spin caps 12, 16, 24, and 32. `benchmark/accuracy_cost_curve.py` reports
 attainment and time-to-target for 50, 25, 10, and 5 mHa absolute error
-thresholds. The primary target is 10 mHa measured against each pool's exact
-sampled-product reference. The comparison records total elapsed time,
+thresholds. The primary target is 10 mHa measured against the explicit FCI
+energy. The exact sampled-product energy remains a separate unrestricted
+pool reference and must not be used for absolute-error attainment. The
+comparison records total elapsed time,
 classical solver time, sampling/other time, solve dimensions, and completed
 solve progress; a run that never reaches a threshold is counted as a failure.
 The curve is exploratory and does not change the frozen cap-12 confirmation
@@ -192,6 +194,17 @@ were 24.884 seconds for marginal selection and 25.090 seconds for Standard
 SQD. Threshold time-to-target is reported both as classical processing time
 and with pool generation added; successful-method averages use only runs that
 reached the threshold, while failures remain in the attainment denominator.
+
+A fixed-budget verification was later run on the same 30 saved
+`n2-large` pools at cap 32 using a declared 0.25-second shared allowance.
+Against the explicit FCI energy, marginal selection reached 10 mHa on 25/30
+pools and Standard SQD on 3/30. Mean errors were 5.940 and 14.975 mHa,
+respectively. Mean complete classical processing was 0.1217 seconds for
+marginal selection and 0.2165 seconds for Standard SQD; mean restart counts
+were 1 and 2. The mean paired Standard-minus-marginal error difference was
+9.035 mHa (95% t interval 7.260--10.811 mHa). The original pool-generation
+time was not rerun and remains a separate historical mean of 24.641 seconds
+for these saved pools.
 
 ## Matched ZenKO benchmark
 

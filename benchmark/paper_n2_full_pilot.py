@@ -15,21 +15,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from chemistry.prepare import prepare_registered  # noqa: E402
 from quantum.SqDRIFT import sample_sqdrift  # noqa: E402
+from benchmark.marginal_selection import select_top_strings  # noqa: E402
 from solvers.sqd import run_sqd  # noqa: E402
 
 
 REFERENCE_ENERGY = -109.04667177831362
-
-
-def select_top(scores, count):
-    means = {
-        string: float(np.mean(values))
-        for string, values in scores.items()
-        if values
-    }
-    return np.array(
-        sorted(means, key=lambda string: (-means[string], string))[:count]
-    )
 
 
 def peak_memory_mib():
@@ -110,8 +100,8 @@ def main():
     )
     collection_seconds = perf_counter() - collection_start
 
-    selected_alpha = select_top(alpha_scores, 32)
-    selected_beta = select_top(beta_scores, 32)
+    selected_alpha = select_top_strings(alpha_scores, 32)
+    selected_beta = select_top_strings(beta_scores, 32)
     candidate_start = perf_counter()
     candidate = solve_sci(
         (selected_alpha, selected_beta),
